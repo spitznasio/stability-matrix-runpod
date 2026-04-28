@@ -45,8 +45,8 @@ RUN pip install --no-cache-dir --force-reinstall \
 RUN mkdir -p /workspace
 
 ENV INVOKEAI_ROOT=/workspace/invokeai
-ENV INVOKEAI__host=0.0.0.0
-ENV INVOKEAI__port=9090
+ENV INVOKEAI_HOST=0.0.0.0
+ENV INVOKEAI_PORT=9090
 ENV PYTORCH_CUDA_ALLOC_CONF=backend:cudaMallocAsync
 ENV CUDA_CACHE_MAXSIZE=4294967296
 ENV SD_USE_FP4=1
