@@ -3,7 +3,7 @@ FROM runpod/pytorch:1.0.3-cu1300-torch291-ubuntu2404
 # Install OS-level dependencies for Stability Matrix AppImage + GUI on Ubuntu 24.04
 # libfuse2t64: Ubuntu 24.04 renamed libfuse2 (64-bit time_t transition) — required for AppImage
 # libgl1 + libglx0: replaces dummy libgl1-mesa-glx on 24.04
-# libdecor-0 + libatk-bridge2.0-0 + libglib2.0-0: required for Avalonia UI framework
+# libdecor-0-0 + libatk-bridge2.0-0 + libglib2.0-0: required for Avalonia UI framework
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libfuse2t64 \
     libgl1 \
@@ -13,9 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss3 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
-    libasound2 \
+    libasound2t64 \
     libglib2.0-0 \
-    libdecor-0 \
+    libdecor-0-0 \
     aria2 \
     wget \
     curl \
