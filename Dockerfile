@@ -1,31 +1,18 @@
 FROM runpod/pytorch:1.0.3-cu1300-torch291-ubuntu2404
 
-# Install OS-level dependencies for Stability Matrix AppImage + GUI on Ubuntu 24.04
-# libfuse2t64: Ubuntu 24.04 renamed libfuse2 (64-bit time_t transition) — required for AppImage
-# libgl1 + libglx0: replaces dummy libgl1-mesa-glx on 24.04
-# libdecor-0-0 + libatk-bridge2.0-0 + libglib2.0-0: required for Avalonia UI framework
+# InvokeAI + tooling dependencies for Ubuntu 24.04
+# libgl1 + libglib2.0-0: required by InvokeAI (verified from official Dockerfile)
+# libegl1 + libglx0: GPU rendering paths
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libfuse2t64 \
     libgl1 \
     libglx0 \
     libegl1 \
-    libx11-6 \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libasound2t64 \
     libglib2.0-0 \
-    libdecor-0-0 \
     aria2 \
     wget \
     curl \
     git \
-    xvfb \
     unzip \
-    xdg-utils \
-    x11vnc \
-    novnc \
-    websockify \
     && rm -rf /var/lib/apt/lists/*
 
 # Install code-server
@@ -40,28 +27,22 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tm
 # Install HuggingFace CLI
 RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
-# Download and install Stability Matrix
-RUN wget -q -O /tmp/SM.zip \
-    "https://github.com/LykosAI/StabilityMatrix/releases/latest/download/StabilityMatrix-linux-x64.zip" \
-    && unzip /tmp/SM.zip -d /tmp/SM_extract \
-    && cp /tmp/SM_extract/StabilityMatrix.AppImage /opt/StabilityMatrix \
-    && chmod +x /opt/StabilityMatrix \
-    && rm -rf /tmp/SM.zip /tmp/SM_extract
+# Install InvokeAI — --extra-index-url ensures pip resolves PyTorch from the
+# cu130 wheel index rather than PyPI, preserving the base image's PyTorch 2.9.1+cu130
+RUN pip install --no-cache-dir invokeai \
+    --extra-index-url https://download.pytorch.org/whl/cu130
 
-# Workspace directory for portable mode (populated by Volume Disk at runtime)
 RUN mkdir -p /workspace
 
-# Blackwell / VRAM / portable-mode environment
-ENV SM_PORTABLE=1
+ENV INVOKEAI_ROOT=/workspace/invokeai
 ENV PYTORCH_CUDA_ALLOC_CONF=backend:cudaMallocAsync
 ENV CUDA_CACHE_MAXSIZE=4294967296
 ENV SD_USE_FP4=1
 ENV CUDA_MODULE_LOADING=LAZY
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
-# HF CLI installs to ~/.local/bin; ensure it is on PATH
 ENV PATH="/root/.local/bin:${PATH}"
 
-EXPOSE 6006 7860 8080 8188
+EXPOSE 8080 9090
 
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
