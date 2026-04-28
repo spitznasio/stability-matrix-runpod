@@ -23,6 +23,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     unzip \
     xdg-utils \
+    x11vnc \
+    novnc \
+    websockify \
     && rm -rf /var/lib/apt/lists/*
 
 # Install code-server
