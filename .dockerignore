@@ -1,0 +1,8 @@
+.git
+.claude
+.agents
+skills-lock.json
+.mcp.json
+*.md
+.DS_Store
+*.tar
