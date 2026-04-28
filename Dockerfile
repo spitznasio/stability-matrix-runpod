@@ -27,10 +27,16 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tm
 # Install HuggingFace CLI
 RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
-# Install InvokeAI — --extra-index-url ensures pip resolves PyTorch from the
-# cu130 wheel index rather than PyPI, preserving the base image's PyTorch 2.9.1+cu130
+# Install InvokeAI
 RUN pip install --no-cache-dir invokeai \
     --extra-index-url https://download.pytorch.org/whl/cu130
+
+# InvokeAI's dependency resolver replaces the base image's cu130 PyTorch build
+# with a PyPI build that only supports up to sm_90, breaking Blackwell (sm_120).
+# Force-reinstall torch/torchvision/torchaudio from cu130 to restore sm_120 support.
+RUN pip install --no-cache-dir --force-reinstall --no-deps \
+    torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cu130
 
 RUN mkdir -p /workspace
 
