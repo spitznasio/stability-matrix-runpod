@@ -12,7 +12,7 @@ code-server \
 
 # InvokeAI web server on port 9090
 # INVOKEAI_ROOT env var (set in image) directs models/images to the volume disk
-invokeai-web --host 0.0.0.0 --port 9090 &
+invokeai-web &
 
 echo "Services started:"
 echo "  code-server : http://0.0.0.0:8080"
