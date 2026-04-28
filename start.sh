@@ -1,10 +1,10 @@
 #!/bin/bash
-set -e
 
 mkdir -p /workspace
 
 # Virtual framebuffer — Stability Matrix (Avalonia UI) requires a display
 Xvfb :1 -screen 0 1280x800x24 -nolisten tcp &
+sleep 2  # wait for Xvfb to be ready before any X11 clients connect
 export DISPLAY=:1
 
 # code-server on port 8080
@@ -31,4 +31,7 @@ echo "  Stability Matrix mgmt : http://0.0.0.0:6006"
 echo "  ComfyUI     : http://0.0.0.0:8188  (after install)"
 echo "  A1111/Forge : http://0.0.0.0:7860  (after install)"
 
-wait
+# Keep container alive regardless of subprocess exit codes.
+# Do NOT use 'set -e' or 'wait' here — if SM crashes, code-server must
+# remain accessible for debugging.
+sleep infinity
