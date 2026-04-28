@@ -40,7 +40,7 @@ RUN curl -LsSf https://hf.co/cli/install.sh | bash
 RUN wget -q -O /tmp/SM.zip \
     "https://github.com/LykosAI/StabilityMatrix/releases/latest/download/StabilityMatrix-linux-x64.zip" \
     && unzip /tmp/SM.zip -d /tmp/SM_extract \
-    && cp /tmp/SM_extract/StabilityMatrix-linux-x64 /opt/StabilityMatrix \
+    && cp /tmp/SM_extract/StabilityMatrix.AppImage /opt/StabilityMatrix \
     && chmod +x /opt/StabilityMatrix \
     && rm -rf /tmp/SM.zip /tmp/SM_extract
 
