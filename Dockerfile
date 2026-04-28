@@ -31,12 +31,16 @@ RUN curl -LsSf https://hf.co/cli/install.sh | bash
 RUN pip install --no-cache-dir invokeai \
     --extra-index-url https://download.pytorch.org/whl/cu130
 
-# InvokeAI's dependency resolver replaces the base image's cu130 PyTorch build
-# with a PyPI build that only supports up to sm_90, breaking Blackwell (sm_120).
-# Force-reinstall torch/torchvision/torchaudio from cu130 to restore sm_120 support.
-RUN pip install --no-cache-dir --force-reinstall --no-deps \
-    torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/cu130
+# InvokeAI's resolver replaces the base image's cu130 PyTorch with a PyPI build
+# that only supports sm_90, breaking Blackwell (sm_120). Reinstall using the
+# +cu130 local version label: PyPI never carries local-label builds so pip is
+# forced to pull from the cu130 wheel index. Without --no-deps, torch's CUDA
+# runtime deps are also reinstalled for binary compatibility.
+RUN pip install --no-cache-dir --force-reinstall \
+    "torch==2.9.1+cu130" \
+    "torchvision==0.24.1+cu130" \
+    "torchaudio==2.9.1+cu130" \
+    --extra-index-url https://download.pytorch.org/whl/cu130
 
 RUN mkdir -p /workspace
 
