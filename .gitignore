@@ -1,0 +1,20 @@
+# Sensitive / local config
+.mcp.json
+.env
+*.env
+.env.*
+
+# Claude agent internals
+.claude/
+.agents/
+skills-lock.json
+
+# Local documentation (not committed)
+START.md
+IMPORTANT.md
+
+# macOS
+.DS_Store
+
+# Docker build artifacts
+*.tar
