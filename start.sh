@@ -8,7 +8,7 @@ if [ -n "$CIVITAI_API_TOKEN" ]; then
     python3 - <<PYEOF
 import yaml, os, sys
 
-config_path = "/workspace/invokeai/config.yaml"
+config_path = "/workspace/invokeai/invokeai.yaml"
 token = os.environ["CIVITAI_API_TOKEN"]
 
 try:
