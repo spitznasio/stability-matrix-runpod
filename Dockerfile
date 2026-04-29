@@ -27,17 +27,14 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tm
 # Install HuggingFace CLI
 RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
-# Install InvokeAI alongside explicit cu130 torch pins in a single resolver pass.
-# Listing torch/torchvision/torchaudio with the +cu130 local version label forces
-# pip to pull from the PyTorch wheel index rather than PyPI — PyPI never carries
-# local-label builds. Because it's one solve, InvokeAI's torch dependency is
-# satisfied by the cu130 wheels directly and they are never replaced, avoiding the
-# extra ~3 GB layer that a post-hoc --force-reinstall would create.
-RUN pip install --no-cache-dir \
+# Install InvokeAI first so its dependency resolver picks a compatible torch version,
+# then force-reinstall cu130 wheels to ensure Blackwell (sm_120) GPU support.
+RUN pip install --no-cache-dir invokeai
+
+RUN pip install --no-cache-dir --force-reinstall \
     "torch==2.9.1+cu130" \
     "torchvision==0.24.1+cu130" \
     "torchaudio==2.9.1+cu130" \
-    invokeai \
     --extra-index-url https://download.pytorch.org/whl/cu130
 
 RUN mkdir -p /workspace
