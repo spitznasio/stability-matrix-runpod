@@ -3,6 +3,8 @@
 .agents
 skills-lock.json
 .mcp.json
+.env
+*.env
 *.md
 .DS_Store
 *.tar
