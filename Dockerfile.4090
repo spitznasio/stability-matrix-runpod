@@ -1,0 +1,55 @@
+FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+
+# InvokeAI + tooling dependencies for Ubuntu 22.04
+# libgl1 + libglib2.0-0: required by InvokeAI (verified from official Dockerfile)
+# libegl1 + libglx0: GPU rendering paths
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglx0 \
+    libegl1 \
+    libglib2.0-0 \
+    aria2 \
+    wget \
+    curl \
+    git \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install code-server
+RUN curl -fsSL https://code-server.dev/install.sh | sh
+
+# Install AWS CLI v2
+RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip \
+    && unzip /tmp/awscliv2.zip -d /tmp/aws-install \
+    && /tmp/aws-install/aws/install \
+    && rm -rf /tmp/awscliv2.zip /tmp/aws-install
+
+# Install HuggingFace CLI
+RUN curl -LsSf https://hf.co/cli/install.sh | bash
+
+# cu124 is mainstream so InvokeAI and GPU torch wheels resolve in a single pass
+# (unlike cu130 which required a two-stage install to avoid pip resolution failures)
+RUN pip install --no-cache-dir \
+    invokeai \
+    "torch==2.4.0+cu124" \
+    "torchvision==0.19.0+cu124" \
+    "torchaudio==2.4.0+cu124" \
+    --extra-index-url https://download.pytorch.org/whl/cu124
+
+RUN mkdir -p /workspace
+
+ENV INVOKEAI_ROOT=/workspace/invokeai
+ENV INVOKEAI_HOST=0.0.0.0
+ENV INVOKEAI_PORT=9090
+ENV PYTORCH_CUDA_ALLOC_CONF=backend:cudaMallocAsync
+ENV CUDA_CACHE_MAXSIZE=4294967296
+ENV CUDA_MODULE_LOADING=LAZY
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
+ENV PATH="/root/.local/bin:${PATH}"
+
+EXPOSE 8080 9090
+
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+ENTRYPOINT ["/start.sh"]
