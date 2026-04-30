@@ -1,6 +1,6 @@
-FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+FROM runpod/pytorch:1.0.3-cu1281-torch271-ubuntu2404
 
-# InvokeAI + tooling dependencies for Ubuntu 22.04
+# InvokeAI + tooling dependencies for Ubuntu 24.04
 # libgl1 + libglib2.0-0: required by InvokeAI (verified from official Dockerfile)
 # libegl1 + libglx0: GPU rendering paths
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -27,14 +27,10 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tm
 # Install HuggingFace CLI
 RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
-# cu124 is mainstream so InvokeAI and GPU torch wheels resolve in a single pass
-# (unlike cu130 which required a two-stage install to avoid pip resolution failures)
+# Base image ships torch 2.7.1, satisfying invokeai's torch~=2.7.0 constraint without reinstalling it
 RUN pip install --no-cache-dir \
     "invokeai==6.12.0" \
-    "torch==2.4.0+cu124" \
-    "torchvision==0.19.0+cu124" \
-    "torchaudio==2.4.0+cu124" \
-    --extra-index-url https://download.pytorch.org/whl/cu124
+    --extra-index-url https://download.pytorch.org/whl/cu128
 
 RUN mkdir -p /workspace
 
