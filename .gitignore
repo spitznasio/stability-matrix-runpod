@@ -18,3 +18,5 @@ IMPORTANT.md
 
 # Docker build artifacts
 *.tar
+
+CONFIG-FORMAT.md

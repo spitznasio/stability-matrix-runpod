@@ -27,7 +27,7 @@ with open(config_path, "w") as f:
     f.write("# Internal metadata - do not edit:\n")
     f.write(f"schema_version: {schema_version}\n\n")
     f.write("# Put user settings here - see https://invoke-ai.github.io/InvokeAI/configuration/:\n")
-    yaml.dump(config, f, default_flow_style=False)
+    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 PYEOF
 fi
 
