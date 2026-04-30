@@ -30,7 +30,7 @@ RUN curl -LsSf https://hf.co/cli/install.sh | bash
 # cu124 is mainstream so InvokeAI and GPU torch wheels resolve in a single pass
 # (unlike cu130 which required a two-stage install to avoid pip resolution failures)
 RUN pip install --no-cache-dir \
-    invokeai \
+    "invokeai==6.12.0" \
     "torch==2.4.0+cu124" \
     "torchvision==0.19.0+cu124" \
     "torchaudio==2.4.0+cu124" \
