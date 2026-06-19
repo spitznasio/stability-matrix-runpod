@@ -60,7 +60,12 @@ from urllib.request import Request, urlopen
 
 DEFAULT_DOWNLOAD_DIR = "/workspace/invokeai/models"
 DEFAULT_BASE_URL = "https://civitai.red"
-ALLOWED_CIVITAI_HOSTS = {"civitai.red", "www.civitai.red"}
+ALLOWED_CIVITAI_HOSTS = {
+    "civitai.red",
+    "*.civitai.red",
+    # Cloudflare R2 delivery worker — subdomain prefix is stable, hash segment varies
+    "civitai-delivery-worker-prod.*",
+}
 
 
 def validate_civitai_url(download_url: str, allowed_hosts: set[str] | None = None) -> str | None:
@@ -75,10 +80,20 @@ def validate_civitai_url(download_url: str, allowed_hosts: set[str] | None = Non
         return "URL must include a hostname"
 
     effective_allowed = allowed_hosts if allowed_hosts is not None else ALLOWED_CIVITAI_HOSTS
-    if host in effective_allowed:
-        return None
-    if any(host.endswith(f".{allowed}") for allowed in effective_allowed):
-        return None
+    for entry in effective_allowed:
+        if entry.startswith("*."):
+            # *.example.com — matches the bare domain and any subdomain
+            suffix = entry[1:]  # e.g. ".civitai.red"
+            if host == suffix[1:] or host.endswith(suffix):
+                return None
+        elif entry.endswith(".*"):
+            # prefix.* — matches any host whose leftmost label equals the prefix
+            prefix = entry[:-2]  # e.g. "civitai-delivery-worker-prod"
+            if host == prefix or host.startswith(prefix + "."):
+                return None
+        else:
+            if host == entry:
+                return None
     return f"URL host '{host}' is not in the allowlist"
 
 
