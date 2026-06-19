@@ -27,9 +27,12 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tm
 # Install HuggingFace CLI
 RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
+# Pin InvokeAI so builds are reproducible unless this arg is intentionally bumped.
+ARG INVOKEAI_VERSION=6.13.0
+
 # Install InvokeAI first so its dependency resolver picks a compatible torch version,
 # then force-reinstall cu130 wheels to ensure Blackwell (sm_120) GPU support.
-RUN pip install --no-cache-dir invokeai
+RUN pip install --no-cache-dir "invokeai==${INVOKEAI_VERSION}"
 
 RUN pip install --no-cache-dir --force-reinstall \
     "torch==2.9.1+cu130" \
@@ -38,6 +41,13 @@ RUN pip install --no-cache-dir --force-reinstall \
     --extra-index-url https://download.pytorch.org/whl/cu130
 
 RUN mkdir -p /workspace
+
+COPY download_from_civitai.py /workspace/download_from_civitai.py
+COPY download_from_s3_skip_existing.py /workspace/download_from_s3_skip_existing.py
+COPY upload_images_to_s3.py /workspace/upload_images_to_s3.py
+COPY upload_models_to_s3.py /workspace/upload_models_to_s3.py
+COPY restart_invokeai.sh /workspace/restart_invokeai.sh
+RUN chmod +x /workspace/restart_invokeai.sh
 
 ENV INVOKEAI_ROOT=/workspace/invokeai
 ENV INVOKEAI_HOST=0.0.0.0
