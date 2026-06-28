@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Browse — CivitAI Manager{% endblock %}
+{% block content %}
+<form class="intake" hx-get="/browse" hx-target="#results" hx-swap="outerHTML" hx-push-url="true">
+  <input
+    type="text" name="q" value="{{ q }}" placeholder="search the catalog…"
+    class="intake__query" autofocus>
+  <select name="types" class="intake__select">
+    <option value="" {{ "selected" if types == "" }}>All types</option>
+    <option value="Checkpoint" {{ "selected" if types == "Checkpoint" }}>Checkpoint</option>
+    <option value="LORA" {{ "selected" if types == "LORA" }}>LoRA</option>
+    <option value="TextualInversion" {{ "selected" if types == "TextualInversion" }}>Textual Inversion</option>
+    <option value="Controlnet" {{ "selected" if types == "Controlnet" }}>ControlNet</option>
+  </select>
+  <select name="base_model" class="intake__select">
+    <option value="" {{ "selected" if base_model == "" }}>All base models</option>
+    {% for bm in base_model_choices %}
+    <option value="{{ bm }}" {{ "selected" if base_model == bm }}>{{ bm }}</option>
+    {% endfor %}
+  </select>
+  <select name="sort" class="intake__select">
+    <option value="Most Downloaded" {{ "selected" if sort == "Most Downloaded" }}>Most Downloaded</option>
+    <option value="Highest Rated" {{ "selected" if sort == "Highest Rated" }}>Highest Rated</option>
+    <option value="Newest" {{ "selected" if sort == "Newest" }}>Newest</option>
+  </select>
+  <select name="period" class="intake__select">
+    <option value="AllTime" {{ "selected" if period == "AllTime" }}>All time</option>
+    <option value="Year" {{ "selected" if period == "Year" }}>Past year</option>
+    <option value="Month" {{ "selected" if period == "Month" }}>Past month</option>
+    <option value="Week" {{ "selected" if period == "Week" }}>Past week</option>
+  </select>
+  <select name="nsfw" class="intake__select">
+    <option value="true" {{ "selected" if nsfw != "false" }}>Include NSFW</option>
+    <option value="false" {{ "selected" if nsfw == "false" }}>Hide NSFW</option>
+  </select>
+  <button type="submit" class="btn btn--accent">Search</button>
+</form>
+
+{% include "browse_results.html" %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% for image in images[:8] %}
+<button type="button" class="thumb"
+  data-url="{{ image.url }}"
+  data-prompt="{{ image.meta.prompt if image.meta else '' }}"
+  data-negative="{{ image.meta.negativePrompt if image.meta else '' }}"
+  data-sampler="{{ image.meta.sampler if image.meta else '' }}"
+  data-steps="{{ image.meta.steps if image.meta else '' }}"
+  data-cfg="{{ image.meta.cfgScale if image.meta else '' }}"
+  data-seed="{{ image.meta.seed if image.meta else '' }}"
+>
+  <img src="{{ image.url }}" alt="" loading="lazy">
+  {% if image.meta %}<span class="thumb__badge">i</span>{% endif %}
+</button>
+{% endfor %}

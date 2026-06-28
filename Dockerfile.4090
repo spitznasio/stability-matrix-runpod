@@ -27,12 +27,23 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tm
 # Install HuggingFace CLI
 RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
+# CivitAI Manager web app dependencies — installed before InvokeAI so its
+# resolver pass for invokeai==6.12.0 below is unaffected by these.
+RUN pip install --no-cache-dir \
+    fastapi \
+    "uvicorn[standard]" \
+    jinja2 \
+    httpx \
+    python-multipart \
+    itsdangerous
+
 # Base image ships torch 2.7.1, satisfying invokeai's torch~=2.7.0 constraint without reinstalling it
 RUN pip install --no-cache-dir \
     "invokeai==6.12.0" \
     --extra-index-url https://download.pytorch.org/whl/cu128
 
 RUN mkdir -p /workspace
+COPY civitai_manager /workspace/civitai_manager
 
 ENV INVOKEAI_ROOT=/workspace/invokeai
 ENV INVOKEAI_HOST=0.0.0.0
@@ -43,7 +54,7 @@ ENV CUDA_MODULE_LOADING=LAZY
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 ENV PATH="/root/.local/bin:${PATH}"
 
-EXPOSE 8080 9090
+EXPOSE 8080 8000 9090
 
 COPY start.sh /start.sh
 RUN chmod +x /start.sh

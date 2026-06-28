@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Installed — CivitAI Manager{% endblock %}
+{% block content %}
+<h1 class="page__title">Installed Models</h1>
+{% if error %}
+  <p class="empty">{{ error }}</p>
+{% elif models %}
+<table class="manifest">
+  <thead>
+    <tr><th>Name</th><th>Base</th><th>Type</th><th>Path</th></tr>
+  </thead>
+  <tbody>
+    {% for m in models %}
+    <tr>
+      <td>{{ m.get('name', '—') }}</td>
+      <td>{{ m.get('base', '—') }}</td>
+      <td>{{ m.get('type', '—') }}</td>
+      <td class="manifest__path">{{ m.get('path', '—') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No models installed yet.</p>
+{% endif %}
+{% endblock %}

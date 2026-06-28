@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login — CivitAI Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="page login">
+    <div class="login__card">
+      <div class="topbar__wordmark">CIVITAI MANAGER</div>
+      {% if error %}
+      <p class="error-banner">{{ error }}</p>
+      {% endif %}
+      <form method="post" action="/login" class="login__form">
+        <input type="hidden" name="next" value="{{ next }}">
+        <label class="login__label" for="username">Username</label>
+        <input type="text" id="username" name="username" class="login__input" autocomplete="username" autofocus required>
+        <label class="login__label" for="password">Password</label>
+        <input type="password" id="password" name="password" class="login__input" autocomplete="current-password" required>
+        <button type="submit" class="btn btn--accent">Log in</button>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

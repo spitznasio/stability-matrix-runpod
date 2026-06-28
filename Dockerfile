@@ -27,6 +27,16 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tm
 # Install HuggingFace CLI
 RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
+# CivitAI Manager web app dependencies — installed before InvokeAI so its
+# resolver pass for invokeai==${INVOKEAI_VERSION} below is unaffected by these.
+RUN pip install --no-cache-dir \
+    fastapi \
+    "uvicorn[standard]" \
+    jinja2 \
+    httpx \
+    python-multipart \
+    itsdangerous
+
 # Pin InvokeAI so builds are reproducible unless this arg is intentionally bumped.
 ARG INVOKEAI_VERSION=6.13.0
 
@@ -48,6 +58,7 @@ COPY upload_images_to_s3.py /workspace/upload_images_to_s3.py
 COPY upload_models_to_s3.py /workspace/upload_models_to_s3.py
 COPY restart_invokeai.sh /workspace/restart_invokeai.sh
 RUN chmod +x /workspace/restart_invokeai.sh
+COPY civitai_manager /workspace/civitai_manager
 
 ENV INVOKEAI_ROOT=/workspace/invokeai
 ENV INVOKEAI_HOST=0.0.0.0
@@ -59,7 +70,7 @@ ENV CUDA_MODULE_LOADING=LAZY
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 ENV PATH="/root/.local/bin:${PATH}"
 
-EXPOSE 8080 9090
+EXPOSE 8080 8000 9090
 
 COPY start.sh /start.sh
 RUN chmod +x /start.sh

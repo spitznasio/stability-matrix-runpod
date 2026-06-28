@@ -1,0 +1,19 @@
+<div
+  id="install-job-{{ job.get('id', 'pending') }}"
+  class="install-status"
+  {% if not terminal %}
+  hx-get="/install/{{ job.get('id') }}/status"
+  hx-trigger="load delay:2s, every 2s [document.visibilityState=='visible']"
+  hx-swap="outerHTML"
+  {% endif %}
+>
+  <span class="install-status__line">Install: {{ job.get('status', 'pending') }}</span>
+  {% if job.get('bytes') and job.get('total_bytes') %}
+  <span class="install-status__bytes">{{ job.bytes }} / {{ job.total_bytes }} bytes</span>
+  {% endif %}
+  {% if terminal and job.get('status') == 'completed' %}
+  <span class="stamp stamp--ok stamp--thunk">INSTALLED</span>
+  {% elif terminal %}
+  <span class="stamp stamp--danger">{{ job.get('error_type', 'INSTALL FAILED') }}: {{ job.get('error', '') }}</span>
+  {% endif %}
+</div>

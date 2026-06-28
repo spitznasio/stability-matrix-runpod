@@ -20,3 +20,6 @@ IMPORTANT.md
 *.tar
 
 CONFIG-FORMAT.md
+
+__pycache__/
+.venv/

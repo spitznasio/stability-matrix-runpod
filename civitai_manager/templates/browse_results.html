@@ -1,0 +1,23 @@
+<div id="results">
+  {% if models %}
+  <div class="grid">
+    {% for model in models %}
+      {% include "_model_card.html" %}
+    {% endfor %}
+  </div>
+  <div class="pager">
+    {% if has_prev %}
+      <a class="pager__link" href="#"
+         hx-get="/browse?q={{ q }}&types={{ types }}&base_model={{ base_model }}&sort={{ sort }}&period={{ period }}&nsfw={{ nsfw }}&cursor={{ prev_cursor }}&prev={{ prev_param }}"
+         hx-target="#results" hx-swap="outerHTML" hx-push-url="true">&lsaquo; Prev</a>
+    {% endif %}
+    {% if metadata.nextCursor %}
+      <a class="pager__link" href="#"
+         hx-get="/browse?q={{ q }}&types={{ types }}&base_model={{ base_model }}&sort={{ sort }}&period={{ period }}&nsfw={{ nsfw }}&cursor={{ metadata.nextCursor }}&prev={{ next_prev_param }}"
+         hx-target="#results" hx-swap="outerHTML" hx-push-url="true">Next &rsaquo;</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="empty">No models matched that search. Try a broader query or a different type.</p>
+  {% endif %}
+</div>

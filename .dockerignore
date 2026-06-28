@@ -8,3 +8,9 @@ skills-lock.json
 *.md
 .DS_Store
 *.tar
+IMPORTANT.md
+CONFIG-FORMAT.md
+.mcp.json
+__pycache__/
+START.md
+.venv/

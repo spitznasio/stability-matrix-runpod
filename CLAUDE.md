@@ -60,6 +60,8 @@ All InvokeAI state (`INVOKEAI_ROOT=/workspace/invokeai`) lives on the RunPod vol
 | `PYTORCH_CUDA_ALLOC_CONF` | Set to `backend:cudaMallocAsync` in image; override with `max_split_size_mb:512,expandable_segments:True` if OOM during tiling |
 | `CUDA_CACHE_MAXSIZE` | `4294967296` (4 GB shader cache) |
 | `HF_HUB_ENABLE_HF_TRANSFER` | Enables Rust-based fast transfer for HuggingFace downloads |
+| `CIVITAI_MANAGER_USERNAME` / `CIVITAI_MANAGER_PASSWORD` | Login for the CivitAI Manager UI (port 8000); unset either to disable login |
+| `CIVITAI_MANAGER_SESSION_SECRET` | Signs the CivitAI Manager session cookie; if unset, a random secret is generated per process start (sessions reset on restart) |
 
 ## Blackwell / RTX 5090 Requirements
 

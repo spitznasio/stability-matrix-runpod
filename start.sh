@@ -43,9 +43,19 @@ code-server \
 # INVOKEAI_ROOT env var (set in image) directs models/images to the volume disk
 invokeai-web &
 
+# CivitAI Manager web app on port 8000
+# Set CIVITAI_MANAGER_USERNAME / CIVITAI_MANAGER_PASSWORD as RunPod env vars to
+# require login (a real login page + session cookie); if either is unset, the
+# UI is unprotected.
+uvicorn civitai_manager.main:app \
+    --app-dir /workspace \
+    --host 0.0.0.0 \
+    --port 8000 &
+
 echo "Services started:"
-echo "  code-server : http://0.0.0.0:8080"
-echo "  InvokeAI    : http://0.0.0.0:9090"
+echo "  code-server     : http://0.0.0.0:8080"
+echo "  CivitAI Manager : http://0.0.0.0:8000"
+echo "  InvokeAI        : http://0.0.0.0:9090"
 
 # Keep container alive regardless of subprocess exit codes
 sleep infinity

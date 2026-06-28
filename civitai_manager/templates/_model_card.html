@@ -1,0 +1,19 @@
+<a class="card" href="/models/{{ model.id }}">
+  {% set thumb = model.modelVersions[0].images[0].url if model.modelVersions and model.modelVersions[0].images else None %}
+  <div class="card__thumb">
+    {% if thumb %}
+      <img src="{{ thumb }}" alt="{{ model.name }}" loading="lazy">
+    {% else %}
+      <div class="card__thumb--empty">NO PREVIEW</div>
+    {% endif %}
+  </div>
+  <div class="card__body">
+    <div class="card__name">{{ model.name }}</div>
+    <div class="card__type">{{ model.type }}</div>
+    <div class="card__creator">by {{ model.creator.username if model.creator else "unknown" }}</div>
+    <div class="card__stats">
+      ★ {{ "%.1f"|format(model.stats.rating) if model.stats and model.stats.rating else "—" }}
+      &middot; ⬇ {{ "{:,}".format(model.stats.downloadCount) if model.stats and model.stats.downloadCount else "0" }}
+    </div>
+  </div>
+</a>
