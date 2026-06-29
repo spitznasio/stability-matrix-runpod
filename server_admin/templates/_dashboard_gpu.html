@@ -1,0 +1,24 @@
+{% macro severity(pct) -%}
+{%- if pct >= 90 -%}is-danger{%- elif pct >= 70 -%}is-warn{%- else -%}{%- endif -%}
+{%- endmacro %}
+{% if not gpu.available %}
+<div class="unavailable-card">GPU unavailable — {{ gpu.reason }}</div>
+{% else %}
+<div class="metric-grid">
+  {% for g in gpu.gpus %}
+  <div class="metric-card">
+    <div class="metric-card__label">GPU {{ g.index }} — {{ g.name }}</div>
+    <div class="metric-card__reading">{{ "%.0f"|format(g.utilization_gpu) }}%</div>
+    <div class="meter">
+      <div class="meter__fill {{ severity(g.utilization_gpu) }}" style="width: {{ g.utilization_gpu }}%"></div>
+      <div class="meter__ticks"><span></span><span></span><span></span><span></span></div>
+    </div>
+    <div class="metric-card__sub">
+      VRAM {{ "%.0f"|format(g.memory_used_mb) }} / {{ "%.0f"|format(g.memory_total_mb) }} MB ·
+      {{ "%.0f"|format(g.temperature_c) }}&deg;C
+      {% if g.power_draw_w is not none %} · {{ "%.0f"|format(g.power_draw_w) }} W{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

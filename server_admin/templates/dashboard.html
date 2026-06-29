@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Server Admin{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<div id="dashboard-telemetry" hx-get="/dashboard/telemetry" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+<div id="dashboard-gpu" hx-get="/dashboard/gpu" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+<div id="dashboard-network" hx-get="/dashboard/network" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+{% endblock %}

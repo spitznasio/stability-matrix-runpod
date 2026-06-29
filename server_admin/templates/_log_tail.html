@@ -1,0 +1,6 @@
+{% if lines %}
+<pre class="log-pane" hx-on::after-swap="this.scrollTop = this.scrollHeight" hx-on::load="this.scrollTop = this.scrollHeight">{% for line in lines %}{{ line }}
+{% endfor %}</pre>
+{% else %}
+<p class="log-pane__empty">No log output yet for this service.</p>
+{% endif %}

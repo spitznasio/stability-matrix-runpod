@@ -1,0 +1,34 @@
+{% macro severity(pct) -%}
+{%- if pct >= 90 -%}is-danger{%- elif pct >= 70 -%}is-warn{%- else -%}{%- endif -%}
+{%- endmacro %}
+<div class="metric-grid">
+  <div class="metric-card">
+    <div class="metric-card__label">CPU ({{ system.cpu_count }} cores)</div>
+    <div class="metric-card__reading">{{ "%.0f"|format(system.cpu_percent) }}%</div>
+    <div class="meter">
+      <div class="meter__fill {{ severity(system.cpu_percent) }}" style="width: {{ system.cpu_percent }}%"></div>
+      <div class="meter__ticks"><span></span><span></span><span></span><span></span></div>
+    </div>
+    <div class="metric-card__sub">load avg {{ "%.2f"|format(system.load_avg[0]) }} {{ "%.2f"|format(system.load_avg[1]) }} {{ "%.2f"|format(system.load_avg[2]) }}</div>
+  </div>
+
+  <div class="metric-card">
+    <div class="metric-card__label">Memory</div>
+    <div class="metric-card__reading">{{ "%.0f"|format(system.mem_percent) }}%</div>
+    <div class="meter">
+      <div class="meter__fill {{ severity(system.mem_percent) }}" style="width: {{ system.mem_percent }}%"></div>
+      <div class="meter__ticks"><span></span><span></span><span></span><span></span></div>
+    </div>
+    <div class="metric-card__sub">{{ system.mem_used | format_bytes }} / {{ system.mem_total | format_bytes }}</div>
+  </div>
+
+  <div class="metric-card">
+    <div class="metric-card__label">Disk ({{ system.disk_path }})</div>
+    <div class="metric-card__reading">{{ "%.0f"|format(system.disk_percent) }}%</div>
+    <div class="meter">
+      <div class="meter__fill {{ severity(system.disk_percent) }}" style="width: {{ system.disk_percent }}%"></div>
+      <div class="meter__ticks"><span></span><span></span><span></span><span></span></div>
+    </div>
+    <div class="metric-card__sub">{{ system.disk_used | format_bytes }} / {{ system.disk_total | format_bytes }}</div>
+  </div>
+</div>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Server Admin{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+  <div id="status-strip" class="status-strip" hx-get="/status-strip" hx-trigger="load, every 3s" hx-swap="outerHTML"></div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="sidebar__wordmark">Server Admin</div>
+      <nav class="sidebar__nav">
+        <a href="/dashboard" class="{{ 'is-active' if active_nav == 'dashboard' else '' }}">Dashboard</a>
+        <a href="/services" class="{{ 'is-active' if active_nav == 'services' else '' }}">Services</a>
+        <a href="/logs" class="{{ 'is-active' if active_nav == 'logs' else '' }}">Logs</a>
+        <a href="/logout">Log out</a>
+      </nav>
+    </aside>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script>
+    document.body.addEventListener('htmx:afterSwap', function () {
+      var strip = document.getElementById('status-strip');
+      if (!strip) return;
+      strip.classList.remove('is-pulsing');
+      void strip.offsetWidth;
+      strip.classList.add('is-pulsing');
+    });
+  </script>
+</body>
+</html>

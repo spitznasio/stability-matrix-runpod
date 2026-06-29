@@ -27,15 +27,17 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tm
 # Install HuggingFace CLI
 RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
-# CivitAI Manager web app dependencies — installed before InvokeAI so its
-# resolver pass for invokeai==6.12.0 below is unaffected by these.
+# CivitAI Manager + Server Admin web app dependencies — installed before
+# InvokeAI so its resolver pass for invokeai==6.12.0 below is unaffected by
+# these. psutil is for Server Admin's system/network telemetry.
 RUN pip install --no-cache-dir \
     fastapi \
     "uvicorn[standard]" \
     jinja2 \
     httpx \
     python-multipart \
-    itsdangerous
+    itsdangerous \
+    psutil
 
 # boto3 for the /workspace S3 helper scripts (upload/download_*_s3.py). The AWS
 # CLI v2 install above bundles its own Python and doesn't expose boto3 here.
@@ -50,6 +52,7 @@ RUN mkdir -p /workspace
 # Installed outside /workspace because /workspace is overlaid by the RunPod
 # volume disk at runtime, which would hide app code baked in here.
 COPY civitai_manager /opt/civitai_manager
+COPY server_admin /opt/server_admin
 
 ENV INVOKEAI_ROOT=/workspace/invokeai
 ENV INVOKEAI_HOST=0.0.0.0
@@ -59,8 +62,11 @@ ENV CUDA_CACHE_MAXSIZE=4294967296
 ENV CUDA_MODULE_LOADING=LAZY
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 ENV PATH="/root/.local/bin:${PATH}"
+# Lets `python3 -m server_admin.supervisor ...` resolve from start.sh without
+# passing --app-dir, matching how uvicorn is invoked for the two web apps.
+ENV PYTHONPATH=/opt
 
-EXPOSE 8080 8000 9090
+EXPOSE 8080 8000 9090 8001
 
 COPY start.sh /start.sh
 RUN chmod +x /start.sh

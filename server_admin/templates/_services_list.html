@@ -1,0 +1,35 @@
+<table class="service-table">
+  <thead>
+    <tr>
+      <th>Service</th>
+      <th>Status</th>
+      <th>PID</th>
+      <th>Uptime</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for svc in services %}
+    <tr>
+      <td>{{ svc.display_name }}</td>
+      <td>
+        <span class="status-pill {{ 'is-running' if svc.running else 'is-stopped' }}">
+          {{ 'Running' if svc.running else 'Stopped' }}
+        </span>
+      </td>
+      <td class="mono">{{ svc.pid if svc.pid else '—' }}</td>
+      <td class="mono">{{ svc.uptime_s | format_uptime }}</td>
+      <td>
+        <div class="btn-row">
+          <button class="btn btn--accent" {{ 'disabled' if svc.running else '' }}
+            hx-post="/services/{{ svc.key }}/start" hx-target="#services-list" hx-swap="innerHTML">Start</button>
+          <button class="btn" {{ 'disabled' if not svc.running else '' }}
+            hx-post="/services/{{ svc.key }}/restart" hx-target="#services-list" hx-swap="innerHTML">Restart</button>
+          <button class="btn btn--danger" {{ 'disabled' if not svc.running else '' }}
+            hx-post="/services/{{ svc.key }}/stop" hx-target="#services-list" hx-swap="innerHTML">Stop</button>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

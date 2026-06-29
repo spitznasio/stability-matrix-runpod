@@ -31,31 +31,29 @@ with open(config_path, "w") as f:
 PYEOF
 fi
 
-# code-server on port 8080
-# --auth none: RunPod network isolation handles access control
-code-server \
-    --bind-addr 0.0.0.0:8080 \
-    --auth none \
-    --disable-telemetry \
-    /workspace &
+# code-server (8080), InvokeAI (9090), and CivitAI Manager (8000) are started
+# and supervised by the Server Admin app's process supervisor, so they get
+# PID tracking, log capture, and start/stop/restart control from its UI.
+# --auth none for code-server: RunPod network isolation handles access control.
+python3 -m server_admin.supervisor start code-server
+python3 -m server_admin.supervisor start invokeai
+python3 -m server_admin.supervisor start civitai-manager
 
-# InvokeAI web server on port 9090
-# INVOKEAI_ROOT env var (set in image) directs models/images to the volume disk
-invokeai-web &
-
-# CivitAI Manager web app on port 8000
-# Set CIVITAI_MANAGER_USERNAME / CIVITAI_MANAGER_PASSWORD as RunPod env vars to
+# Server Admin web app on port 8001
+# Set SERVER_ADMIN_USERNAME / SERVER_ADMIN_PASSWORD as RunPod env vars to
 # require login (a real login page + session cookie); if either is unset, the
-# UI is unprotected.
-uvicorn civitai_manager.main:app \
+# UI is unprotected. Unlike CivitAI Manager, this app can stop/start
+# services, so leaving it open is higher risk.
+uvicorn server_admin.main:app \
     --app-dir /opt \
     --host 0.0.0.0 \
-    --port 8000 &
+    --port 8001 &
 
 echo "Services started:"
 echo "  code-server     : http://0.0.0.0:8080"
 echo "  CivitAI Manager : http://0.0.0.0:8000"
 echo "  InvokeAI        : http://0.0.0.0:9090"
+echo "  Server Admin    : http://0.0.0.0:8001"
 
 # Keep container alive regardless of subprocess exit codes
 sleep infinity
