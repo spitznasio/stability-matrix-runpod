@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | OneDrive Sync Manager{% endblock %}
+{% block content %}
+<header class="header">
+    <div>
+        <h1>OneDrive Sync Manager</h1>
+        <p class="muted">Welcome, {{ username }}. Auth is active and this service is ready for sync features.</p>
+    </div>
+    <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="secondary">Sign Out</button>
+    </form>
+</header>
+
+<section class="card">
+    <h2>OneDrive Connection</h2>
+    {% if onedrive.error or oauth_error %}
+    <div class="alert">{{ onedrive.error or oauth_error }}</div>
+    {% endif %}
+
+    {% if onedrive.connected %}
+    <p>Connected as <strong>{{ onedrive.account }}</strong>.</p>
+    <form method="post" action="/auth/disconnect">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="secondary">Disconnect OneDrive</button>
+    </form>
+    {% else %}
+    <p class="muted">No OneDrive account connected yet.</p>
+    <a href="/auth/connect"><button type="button">Connect OneDrive</button></a>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>Manual Sync</h2>
+    <p class="muted">Source root is restricted to /workspace. Use a relative folder path inside it.</p>
+    <form method="post" action="/sync/dry-run" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <label for="local_subpath">Local relative path</label>
+        <input id="local_subpath" name="local_subpath" type="text" value="{{ sync_defaults.local_subpath }}" placeholder="models">
+
+        <label for="remote_folder">OneDrive target folder</label>
+        <input id="remote_folder" name="remote_folder" type="text" value="{{ sync_defaults.remote_folder }}" placeholder="onedrive-sync">
+
+        <label for="include_globs">Include globs (comma-separated)</label>
+        <input id="include_globs" name="include_globs" type="text" value="{{ sync_defaults.include_globs }}" placeholder="*">
+
+        <label for="exclude_globs">Exclude globs (comma-separated)</label>
+        <input id="exclude_globs" name="exclude_globs" type="text" value="{{ sync_defaults.exclude_globs }}" placeholder="*.tmp,__pycache__/*">
+
+        <label for="conflict_behavior">Conflict behavior</label>
+        <select id="conflict_behavior" name="conflict_behavior">
+            <option value="replace" {% if sync_defaults.conflict_behavior == 'replace' %}selected{% endif %}>replace (overwrite)</option>
+            <option value="rename" {% if sync_defaults.conflict_behavior == 'rename' %}selected{% endif %}>rename (keep both)</option>
+            <option value="fail" {% if sync_defaults.conflict_behavior == 'fail' %}selected{% endif %}>fail (stop on conflict)</option>
+        </select>
+
+        <label class="inline-check" for="force_rescan">
+            <input id="force_rescan" name="force_rescan" type="checkbox" {% if sync_defaults.force_rescan %}checked{% endif %}>
+            Force full rescan (ignore manifest acceleration)
+        </label>
+
+        <div class="button-row">
+            <button type="submit">Run Dry-Run</button>
+            <button type="submit" formaction="/sync/start">Start Sync Job</button>
+        </div>
+    </form>
+</section>
+
+{% if dry_run %}
+<section class="card">
+    <h2>Dry-Run Summary</h2>
+    <ul>
+        <li>Local root: {{ dry_run.local_root }}</li>
+        <li>Remote folder: {{ dry_run.remote_folder or '/' }}</li>
+        <li>Conflict behavior: {{ dry_run.conflict_behavior }}</li>
+        <li>Force rescan: {{ 'yes' if dry_run.force_rescan else 'no' }}</li>
+        <li>Scanned files: {{ dry_run.summary.scanned_files }}</li>
+        <li>To upload: {{ dry_run.summary.to_upload }}</li>
+        <li>Unchanged: {{ dry_run.summary.unchanged }}</li>
+        <li>Excluded: {{ dry_run.summary.excluded }}</li>
+        <li>Manifest hits: {{ dry_run.summary.manifest_hits }}</li>
+        <li>Bytes to upload: {{ dry_run.summary.bytes_to_upload }}</li>
+    </ul>
+</section>
+{% endif %}
+
+<section class="card" id="latest-job-card">
+    <h2>Latest Sync Job</h2>
+    {% if latest_job %}
+    <p><strong>Status:</strong> <span id="job-status">{{ latest_job.status }}</span></p>
+    <p><strong>Job ID:</strong> <span id="job-id">{{ latest_job.id }}</span></p>
+    <p><strong>Conflict behavior:</strong> <span id="job-conflict">{{ latest_job.conflict_behavior }}</span></p>
+    <p><strong>Uploaded files:</strong> <span id="job-files-uploaded">{{ latest_job.progress.files_uploaded }}</span> / <span id="job-files-total">{{ latest_job.progress.files_total }}</span></p>
+    <p><strong>Uploaded bytes:</strong> <span id="job-bytes-uploaded">{{ latest_job.progress.bytes_uploaded }}</span> / <span id="job-bytes-total">{{ latest_job.progress.bytes_total }}</span></p>
+    <p><strong>Error:</strong> <span id="job-error">{{ latest_job.error or '-' }}</span></p>
+    <div class="button-row">
+        <a href="/sync/jobs/{{ latest_job.id }}/view"><button type="button" class="secondary">Job Detail</button></a>
+        {% if latest_job.status in ['queued', 'running', 'cancelling'] %}
+        <form method="post" action="/sync/jobs/{{ latest_job.id }}/cancel" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="danger">Cancel Job</button>
+        </form>
+        {% endif %}
+    </div>
+    <h3>Recent Events</h3>
+    <pre id="job-events">{% if latest_job.events %}{% for event in latest_job.events[-15:] %}[{{ event.at }}] {{ event.message }}
+{% endfor %}{% else %}No events yet.{% endif %}</pre>
+    {% else %}
+    <p class="muted">No sync jobs yet.</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>Recent Sync Jobs</h2>
+    {% if recent_jobs %}
+    <table class="jobs-table">
+        <thead>
+            <tr>
+                <th>Created</th>
+                <th>Status</th>
+                <th>Target</th>
+                <th>Files</th>
+                <th>Conflict</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in recent_jobs %}
+            <tr>
+                <td>{{ job.created_at }}</td>
+                <td>{{ job.status }}</td>
+                <td>{{ job.remote_folder or '/' }}</td>
+                <td>{{ job.progress.files_uploaded }} / {{ job.progress.files_total }}</td>
+                <td>{{ job.conflict_behavior }}</td>
+                <td><a href="/sync/jobs/{{ job.id }}/view">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <a href="/sync/jobs"><button type="button" class="secondary">Open Full History</button></a>
+    {% else %}
+    <p class="muted">No previous jobs.</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>Implementation Status</h2>
+    <ul>
+        <li>Local authentication: enabled</li>
+        <li>Session security: enabled</li>
+        <li>Runpod-ready service port: 8002</li>
+        <li>Delegated OAuth: enabled</li>
+        <li>Sync engine: dry-run + background upload job enabled</li>
+    </ul>
+</section>
+
+<script>
+async function refreshLatestJob() {
+    try {
+        const response = await fetch('/sync/jobs/latest', { headers: { 'Accept': 'application/json' } });
+        if (!response.ok) return;
+        const job = await response.json();
+        if (!job || !job.id) return;
+
+        const statusEl = document.getElementById('job-status');
+        const idEl = document.getElementById('job-id');
+        const filesUploadedEl = document.getElementById('job-files-uploaded');
+        const filesTotalEl = document.getElementById('job-files-total');
+        const bytesUploadedEl = document.getElementById('job-bytes-uploaded');
+        const bytesTotalEl = document.getElementById('job-bytes-total');
+        const errorEl = document.getElementById('job-error');
+        const conflictEl = document.getElementById('job-conflict');
+        const eventsEl = document.getElementById('job-events');
+
+        if (!statusEl || !idEl || !filesUploadedEl || !filesTotalEl || !bytesUploadedEl || !bytesTotalEl || !errorEl || !conflictEl || !eventsEl) {
+            return;
+        }
+
+        statusEl.textContent = job.status || '-';
+        idEl.textContent = job.id || '-';
+        filesUploadedEl.textContent = (job.progress && job.progress.files_uploaded) || 0;
+        filesTotalEl.textContent = (job.progress && job.progress.files_total) || 0;
+        bytesUploadedEl.textContent = (job.progress && job.progress.bytes_uploaded) || 0;
+        bytesTotalEl.textContent = (job.progress && job.progress.bytes_total) || 0;
+        errorEl.textContent = job.error || '-';
+        conflictEl.textContent = job.conflict_behavior || '-';
+
+        const events = (job.events || []).slice(-15);
+        if (!events.length) {
+            eventsEl.textContent = 'No events yet.';
+        } else {
+            eventsEl.textContent = events.map((evt) => '[' + evt.at + '] ' + evt.message).join('\n');
+        }
+    } catch (err) {
+        // Ignore poll errors; next cycle will retry.
+    }
+}
+
+setInterval(refreshLatestJob, 3000);
+</script>
+{% endblock %}

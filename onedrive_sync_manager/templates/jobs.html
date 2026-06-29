@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Sync Jobs | OneDrive Sync Manager{% endblock %}
+{% block content %}
+<header class="header">
+    <div>
+        <h1>Sync Job History</h1>
+        <p class="muted">Paginated history of manual sync runs.</p>
+    </div>
+    <a href="/dashboard"><button type="button" class="secondary">Back to Dashboard</button></a>
+</header>
+
+<section class="card">
+    <p><strong>Total jobs:</strong> {{ pager.total }} | <strong>Page:</strong> {{ pager.page }} / {{ pager.total_pages }}</p>
+
+    {% if pager.items %}
+    <table class="jobs-table">
+        <thead>
+            <tr>
+                <th>Created</th>
+                <th>Status</th>
+                <th>Target</th>
+                <th>Progress</th>
+                <th>Conflict</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in pager.items %}
+            <tr>
+                <td>{{ job.created_at }}</td>
+                <td>{{ job.status }}</td>
+                <td>{{ job.remote_folder or '/' }}</td>
+                <td>{{ job.progress.files_uploaded }} / {{ job.progress.files_total }}</td>
+                <td>{{ job.conflict_behavior }}</td>
+                <td>
+                    <a href="/sync/jobs/{{ job.id }}/view">View</a>
+                    {% if job.status in ['queued', 'running', 'cancelling'] %}
+                    <form method="post" action="/sync/jobs/{{ job.id }}/cancel" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="danger">Cancel</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No jobs found.</p>
+    {% endif %}
+
+    <div class="pager-row">
+        {% if pager.has_prev %}
+        <a href="/sync/jobs?page={{ pager.prev_page }}&page_size={{ pager.page_size }}"><button type="button" class="secondary">Previous</button></a>
+        {% endif %}
+        {% if pager.has_next %}
+        <a href="/sync/jobs?page={{ pager.next_page }}&page_size={{ pager.page_size }}"><button type="button" class="secondary">Next</button></a>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

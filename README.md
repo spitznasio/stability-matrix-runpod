@@ -6,6 +6,7 @@ Run **InvokeAI** (Stable Diffusion), **code-server** (VS Code), and a **CivitAI 
 
 - 🎨 Full InvokeAI web UI for text-to-image, image editing, and more
 - 🤖 CivitAI Manager — browse and install models directly into InvokeAI
+- ☁️ OneDrive Sync Manager — manual one-way sync from pod-local folders to OneDrive
 - 💻 code-server — VS Code in your browser for terminal access and scripting
 - 📦 Pre-installed tools: AWS CLI, HuggingFace CLI, aria2 for fast downloads
 - 💾 Persistent volume storage — models and images survive pod restarts
@@ -22,7 +23,7 @@ Run **InvokeAI** (Stable Diffusion), **code-server** (VS Code), and a **CivitAI 
    - **GPU**: RTX 5090 (Blackwell) or RTX 4090 (Ada)
    - **Container Disk**: 10 GB minimum
    - **Volume Disk**: 100+ GB (for models and outputs)
-   - **Port Mapping**: Expose `8080`, `8000`, `9090` as HTTP
+  - **Port Mapping**: Expose `8080`, `8000`, `9090`, `8002` as HTTP
 
 ### 2. Set environment variables
 
@@ -38,10 +39,18 @@ CIVITAI_API_TOKEN=your_token_here
 
 - `CIVITAI_MANAGER_USERNAME` and `CIVITAI_MANAGER_PASSWORD` — if both are set, the CivitAI Manager UI requires login
 - `CIVITAI_MANAGER_SESSION_SECRET` — signs the session cookie; if unset, sessions reset on restart
+- `ONEDRIVE_MANAGER_USERNAME` — local auth username for OneDrive Sync Manager
+- `ONEDRIVE_MANAGER_PASSWORD_HASH` — bcrypt hash for local auth password
+- `ONEDRIVE_MANAGER_SESSION_SECRET` — session-signing secret for OneDrive Sync Manager
+- `ONEDRIVE_CLIENT_ID` — Microsoft app registration client ID
+- `ONEDRIVE_REDIRECT_URI` — callback URL, e.g. `https://<pod-id>-8002.proxy.runpod.net/auth/callback`
+- `ONEDRIVE_TENANT_ID` — optional, defaults to `common`
+- `ONEDRIVE_SCOPES` — optional, defaults to `offline_access Files.ReadWrite.All User.Read`
+- `ONEDRIVE_SYNC_LOCAL_BASE_ROOT` — optional, defaults to `/workspace`
 
 ### 3. Start the pod
 
-Click **Start Pod**. Wait ~2 minutes for services to boot. RunPod will show three proxy URLs for ports 8080, 8000, and 9090.
+Click **Start Pod**. Wait ~2 minutes for services to boot. RunPod will show proxy URLs for ports 8080, 8000, 9090, and 8002.
 
 Done! All three services are now running.
 
@@ -77,6 +86,13 @@ The CivitAI Manager lets you search and install models without leaving RunPod.
 3. Navigate to `/workspace` to access:
    - `/workspace/invokeai` — InvokeAI data, models, outputs
    - `/workspace` — scripts for downloading/uploading to S3, restarting InvokeAI, etc.
+
+### OneDrive Sync Manager — Manual Sync
+
+1. Open the **8002** proxy link (`https://<pod-id>-8002.proxy.runpod.net`).
+2. Sign in with your local OneDrive Sync Manager credentials.
+3. Click **Connect OneDrive** and complete OAuth.
+4. Use **Dry-Run** and **Start Sync Job** for one-way local-to-OneDrive uploads.
 
 ---
 

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Login | OneDrive Sync Manager{% endblock %}
+{% block content %}
+<section class="card">
+    <h1>OneDrive Sync Manager</h1>
+    <p class="muted">Sign in to access manual sync controls.</p>
+
+    {% if error %}
+    <div class="alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="next" value="{{ next }}">
+
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" required>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+        <button type="submit">Sign In</button>
+    </form>
+</section>
+{% endblock %}

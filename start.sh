@@ -49,11 +49,22 @@ uvicorn server_admin.main:app \
     --host 0.0.0.0 \
     --port 8001 &
 
+# OneDrive Sync Manager web app on port 8002.
+# Local auth is mandatory for this service. Set these RunPod env vars:
+# - ONEDRIVE_MANAGER_USERNAME
+# - ONEDRIVE_MANAGER_PASSWORD_HASH
+# - ONEDRIVE_MANAGER_SESSION_SECRET (recommended, otherwise generated on boot)
+uvicorn onedrive_sync_manager.main:app \
+    --app-dir /opt \
+    --host 0.0.0.0 \
+    --port 8002 &
+
 echo "Services started:"
 echo "  code-server     : http://0.0.0.0:8080"
 echo "  CivitAI Manager : http://0.0.0.0:8000"
 echo "  InvokeAI        : http://0.0.0.0:9090"
 echo "  Server Admin    : http://0.0.0.0:8001"
+echo "  OneDrive Sync   : http://0.0.0.0:8002"
 
 # Keep container alive regardless of subprocess exit codes
 sleep infinity

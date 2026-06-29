@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Job Detail | OneDrive Sync Manager{% endblock %}
+{% block content %}
+<header class="header">
+    <div>
+        <h1>Sync Job Detail</h1>
+        <p class="muted">Job ID: {{ job.id }}</p>
+    </div>
+    <div class="button-row">
+        <a href="/sync/jobs"><button type="button" class="secondary">Back to History</button></a>
+        <a href="/dashboard"><button type="button" class="secondary">Dashboard</button></a>
+    </div>
+</header>
+
+<section class="card">
+    <p><strong>Status:</strong> {{ job.status }}</p>
+    <p><strong>Created:</strong> {{ job.created_at }}</p>
+    <p><strong>Started:</strong> {{ job.started_at or '-' }}</p>
+    <p><strong>Finished:</strong> {{ job.finished_at or '-' }}</p>
+    <p><strong>Local subpath:</strong> {{ job.local_subpath or '/' }}</p>
+    <p><strong>Remote folder:</strong> {{ job.remote_folder or '/' }}</p>
+    <p><strong>Conflict behavior:</strong> {{ job.conflict_behavior }}</p>
+    <p><strong>Force rescan:</strong> {{ 'yes' if job.force_rescan else 'no' }}</p>
+    <p><strong>Uploaded files:</strong> {{ job.progress.files_uploaded }} / {{ job.progress.files_total }}</p>
+    <p><strong>Failed files:</strong> {{ job.progress.files_failed }}</p>
+    <p><strong>Uploaded bytes:</strong> {{ job.progress.bytes_uploaded }} / {{ job.progress.bytes_total }}</p>
+    <p><strong>Error:</strong> {{ job.error or '-' }}</p>
+
+    {% if job.status in ['queued', 'running', 'cancelling'] %}
+    <form method="post" action="/sync/jobs/{{ job.id }}/cancel">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="danger">Cancel Job</button>
+    </form>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>Event Log</h2>
+    <pre>{% if job.events %}{% for event in job.events %}[{{ event.at }}] {{ event.message }}
+{% endfor %}{% else %}No events yet.{% endif %}</pre>
+</section>
+{% endblock %}

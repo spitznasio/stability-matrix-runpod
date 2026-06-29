@@ -35,9 +35,11 @@ RUN pip install --no-cache-dir \
     "uvicorn[standard]" \
     jinja2 \
     httpx \
+    msal \
     python-multipart \
     itsdangerous \
-    psutil
+    psutil \
+    "passlib[bcrypt]"
 
 # boto3 for the /workspace S3 helper scripts (upload/download_*_s3.py). The AWS
 # CLI v2 install above bundles its own Python and doesn't expose boto3 here.
@@ -68,6 +70,7 @@ RUN chmod +x /workspace/restart_invokeai.sh
 # volume disk at runtime, which would hide app code baked in here.
 COPY civitai_manager /opt/civitai_manager
 COPY server_admin /opt/server_admin
+COPY onedrive_sync_manager /opt/onedrive_sync_manager
 
 ENV INVOKEAI_ROOT=/workspace/invokeai
 ENV INVOKEAI_HOST=0.0.0.0
@@ -82,7 +85,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 # passing --app-dir, matching how uvicorn is invoked for the two web apps.
 ENV PYTHONPATH=/opt
 
-EXPOSE 8080 8000 9090 8001
+EXPOSE 8080 8000 9090 8001 8002
 
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
