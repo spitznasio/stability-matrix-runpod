@@ -56,6 +56,10 @@ In `Dockerfile`, InvokeAI is installed first with plain `pip install invokeai` s
 
 A separate FastAPI app (`civitai_manager/`) for browsing and installing CivitAI models into InvokeAI. Installed at `/opt/civitai_manager` rather than `/workspace` because `/workspace` is overlaid by the RunPod volume disk at runtime, which would hide app code baked into the image. Login is optional: gated by `CIVITAI_MANAGER_USERNAME`/`CIVITAI_MANAGER_PASSWORD` (`civitai_manager/config.py`); if either is unset, the UI is unprotected. The session-signing secret (`CIVITAI_MANAGER_SESSION_SECRET`) falls back to a random value generated per process start when unset, so all sessions are invalidated on every container restart.
 
+InvokeAI's `POST /api/v2/models/install` (v6.12.0/v6.13.0) takes `source` and `access_token` as **query params** (plain strings), not a JSON body object — the JSON body is reserved for an optional `ModelRecordChanges` config override (send `{}` if unused). `invokeai_client.py`'s `install_model()` sends this correctly; don't "fix" it back to a `{"source": {...}}` body shape.
+
+When the manager's `/install` endpoint returns the generic "InvokeAI is not ready yet, or the install request was rejected" error, the real cause is hidden by a blanket `except httpx.HTTPError` in `main.py`. To see InvokeAI's actual response, curl it directly from inside the pod (code-server terminal, port 8080): `curl -i -X POST "http://localhost:9090/api/v2/models/install?source=<url-encoded-civitai-url>" -d '{}'`.
+
 ### InvokeAI config injection
 
 `start.sh` reads `/workspace/invokeai/invokeai.yaml` at container start, not at image build time, so the CivitAI token (set as a RunPod env var `CIVITAI_API_TOKEN`) is written before the server launches. The config file lives on the volume disk and persists across pod restarts.

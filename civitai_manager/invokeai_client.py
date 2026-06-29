@@ -11,11 +11,11 @@ class InvokeAIClient:
         await self._client.aclose()
 
     async def install_model(self, download_url: str, access_token: str | None) -> dict:
-        source: dict[str, str] = {"type": "URLModelSource", "url": download_url}
+        params: dict[str, str] = {"source": download_url}
         if access_token:
-            source["access_token"] = access_token
+            params["access_token"] = access_token
 
-        response = await self._client.post("/api/v2/models/install", json={"source": source})
+        response = await self._client.post("/api/v2/models/install", params=params, json={})
         response.raise_for_status()
         return response.json()
 
