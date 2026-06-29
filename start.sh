@@ -48,7 +48,7 @@ invokeai-web &
 # require login (a real login page + session cookie); if either is unset, the
 # UI is unprotected.
 uvicorn civitai_manager.main:app \
-    --app-dir /workspace \
+    --app-dir /opt \
     --host 0.0.0.0 \
     --port 8000 &
 

@@ -58,7 +58,9 @@ COPY upload_images_to_s3.py /workspace/upload_images_to_s3.py
 COPY upload_models_to_s3.py /workspace/upload_models_to_s3.py
 COPY restart_invokeai.sh /workspace/restart_invokeai.sh
 RUN chmod +x /workspace/restart_invokeai.sh
-COPY civitai_manager /workspace/civitai_manager
+# Installed outside /workspace because /workspace is overlaid by the RunPod
+# volume disk at runtime, which would hide app code baked in here.
+COPY civitai_manager /opt/civitai_manager
 
 ENV INVOKEAI_ROOT=/workspace/invokeai
 ENV INVOKEAI_HOST=0.0.0.0

@@ -1,5 +1,6 @@
 import secrets
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Form, Request
@@ -59,8 +60,9 @@ app.add_middleware(SessionAuthMiddleware)
 # Added last so it runs first (outermost), making request.session available
 # to SessionAuthMiddleware further down the stack.
 app.add_middleware(SessionMiddleware, secret_key=config.SESSION_SECRET, session_cookie="civitai_manager_session")
-app.mount("/static", StaticFiles(directory="civitai_manager/static"), name="static")
-templates = Jinja2Templates(directory="civitai_manager/templates")
+BASE_DIR = Path(__file__).resolve().parent
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
 @app.get("/login", response_class=HTMLResponse)

@@ -43,7 +43,9 @@ RUN pip install --no-cache-dir \
     --extra-index-url https://download.pytorch.org/whl/cu128
 
 RUN mkdir -p /workspace
-COPY civitai_manager /workspace/civitai_manager
+# Installed outside /workspace because /workspace is overlaid by the RunPod
+# volume disk at runtime, which would hide app code baked in here.
+COPY civitai_manager /opt/civitai_manager
 
 ENV INVOKEAI_ROOT=/workspace/invokeai
 ENV INVOKEAI_HOST=0.0.0.0
