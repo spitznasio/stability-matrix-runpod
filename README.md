@@ -144,7 +144,7 @@ Click **Stop Pod** in RunPod. Models, images, and all configuration persist on t
 
 Click **Start Pod**. The same volume disk reattaches, and all three services boot again with your models intact.
 
-**⚠️ Important:** The volume disk is tied to a specific physical host. If you stop the pod and the 5090/4090 is fully rented out in that datacenter, you may not be able to restart on the same volume. See [IMPORTANT.md](IMPORTANT.md) for details.
+**⚠️ Important:** The volume disk is tied to a specific physical host. If you stop the pod and the 5090/4090 is fully rented out in that datacenter, you may not be able to restart on the same volume.
 
 ---
 
@@ -188,7 +188,7 @@ Models are stored on the volume disk at `/workspace/invokeai/models`, so they sh
 
 ### I can't restart my pod on the same volume
 
-See [IMPORTANT.md](IMPORTANT.md) **"The Zero GPU Local Disk Lock"** gotcha. The volume is tied to a specific host. If that host is fully booked, create a new pod with a different volume or contact RunPod support.
+The volume is tied to a specific physical host. If that host is fully booked, create a new pod with a different volume or contact RunPod support.
 
 ---
 
@@ -228,8 +228,6 @@ After a build completes, update your RunPod template:
 - **Data:** Models (`/workspace/invokeai/models`), outputs (`/workspace/invokeai/outputs`), config (`/workspace/invokeai/invokeai.yaml`) all live here
 - **App code:** `civitai_manager` is installed at `/opt` (outside the volume mount) so it's not hidden when the volume attaches
 
-See [IMPORTANT.md](IMPORTANT.md) for Blackwell-specific gotchas (GDDR7 fragmentation, sm_120 kernel issues, etc.).
-
 ---
 
 ## References
@@ -238,4 +236,3 @@ See [IMPORTANT.md](IMPORTANT.md) for Blackwell-specific gotchas (GDDR7 fragmenta
 - [CivitAI](https://civitai.com)
 - [RunPod](https://www.runpod.io)
 - [Project README](CLAUDE.md) — technical architecture & file guide
-- [Config Format](CONFIG-FORMAT.md) — InvokeAI YAML config details
