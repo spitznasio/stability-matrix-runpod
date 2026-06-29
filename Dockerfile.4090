@@ -37,6 +37,10 @@ RUN pip install --no-cache-dir \
     python-multipart \
     itsdangerous
 
+# boto3 for the /workspace S3 helper scripts (upload/download_*_s3.py). The AWS
+# CLI v2 install above bundles its own Python and doesn't expose boto3 here.
+RUN pip install --no-cache-dir boto3
+
 # Base image ships torch 2.7.1, satisfying invokeai's torch~=2.7.0 constraint without reinstalling it
 RUN pip install --no-cache-dir \
     "invokeai==6.12.0" \
