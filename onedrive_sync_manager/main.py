@@ -14,9 +14,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import config
 from .onedrive_oauth import (
     acquire_access_token_silent,
-    complete_authorization_flow,
+    complete_device_flow,
     disconnect,
-    get_authorization_flow,
+    get_device_flow,
 )
 from .job_store import (
     append_job_event,
@@ -176,7 +176,7 @@ async def dashboard(request: Request):
 
     defaults = {
         "local_subpath": request.session.get("sync_local_subpath", ""),
-        "remote_folder": request.session.get("sync_remote_folder", "onedrive-sync"),
+        "remote_folder": request.session.get("sync_remote_folder", ""),
         "include_globs": request.session.get("sync_include_globs", "*"),
         "exclude_globs": request.session.get("sync_exclude_globs", "*.tmp,*.part,__pycache__/*,.git/*"),
         "conflict_behavior": request.session.get("sync_conflict_behavior", "replace"),
@@ -203,12 +203,15 @@ async def dashboard(request: Request):
 async def sync_jobs_page(request: Request, page: int = 1, page_size: int = 20):
     token = _ensure_csrf_token(request)
     pager = get_jobs_page(page=page, page_size=min(max(page_size, 5), 100))
+    active_statuses = {"queued", "running", "cancelling"}
+    has_active_jobs = any((job.get("status") in active_statuses) for job in pager.get("items", []))
     return templates.TemplateResponse(
         request,
         "jobs.html",
         {
             "csrf_token": token,
             "pager": pager,
+            "has_active_jobs": has_active_jobs,
         },
     )
 
@@ -219,32 +222,52 @@ async def sync_job_view(request: Request, job_id: str):
     job = get_job(job_id)
     if not job:
         return RedirectResponse(url="/sync/jobs", status_code=303)
+    job_is_active = job.get("status") in {"queued", "running", "cancelling"}
     return templates.TemplateResponse(
         request,
         "job_detail.html",
         {
             "csrf_token": token,
             "job": job,
+            "job_is_active": job_is_active,
         },
     )
 
 
 @app.get("/auth/connect")
 async def auth_connect(request: Request) -> RedirectResponse:
-    flow = get_authorization_flow()
-    request.session["oauth_flow"] = flow
-    return RedirectResponse(url=flow["auth_uri"], status_code=303)
-
-
-@app.get("/auth/callback")
-async def auth_callback(request: Request) -> RedirectResponse:
-    flow = request.session.get("oauth_flow")
-    if not flow:
-        request.session["oauth_error"] = "Missing OAuth flow state. Start the connection again."
+    flow = get_device_flow()
+    if "user_code" not in flow:
+        request.session["oauth_error"] = flow.get("error_description", "Unable to start device sign-in.")
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    result = complete_authorization_flow(flow, dict(request.query_params))
-    request.session.pop("oauth_flow", None)
+    request.session["oauth_device_flow"] = flow
+    return templates.TemplateResponse(
+        request,
+        "connect_device_code.html",
+        {
+            "csrf_token": _ensure_csrf_token(request),
+            "verification_uri": flow.get("verification_uri") or flow.get("verification_uri_complete"),
+            "verification_uri_complete": flow.get("verification_uri_complete"),
+            "user_code": flow.get("user_code"),
+            "expires_in": flow.get("expires_in"),
+            "interval": flow.get("interval"),
+        },
+    )
+
+
+@app.post("/auth/connect/complete")
+async def auth_connect_complete(request: Request, csrf_token: str = Form(...)) -> RedirectResponse:
+    if not _validate_csrf_token(request, csrf_token):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    flow = request.session.get("oauth_device_flow")
+    if not flow:
+        request.session["oauth_error"] = "Missing device sign-in state. Start the connection again."
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    result = complete_device_flow(flow)
+    request.session.pop("oauth_device_flow", None)
 
     if "access_token" not in result:
         request.session["oauth_error"] = result.get("error_description", "OAuth sign-in failed.")
@@ -275,7 +298,7 @@ async def sync_dry_run(
     request: Request,
     csrf_token: str = Form(...),
     local_subpath: str = Form(""),
-    remote_folder: str = Form("onedrive-sync"),
+    remote_folder: str = Form(""),
     include_globs: str = Form("*"),
     exclude_globs: str = Form("*.tmp,*.part,__pycache__/*,.git/*"),
     conflict_behavior: str = Form("replace"),
@@ -327,7 +350,7 @@ async def sync_start(
     request: Request,
     csrf_token: str = Form(...),
     local_subpath: str = Form(""),
-    remote_folder: str = Form("onedrive-sync"),
+    remote_folder: str = Form(""),
     include_globs: str = Form("*"),
     exclude_globs: str = Form("*.tmp,*.part,__pycache__/*,.git/*"),
     conflict_behavior: str = Form("replace"),

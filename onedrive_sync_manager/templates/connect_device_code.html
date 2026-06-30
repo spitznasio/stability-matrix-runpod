@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Connect OneDrive | OneDrive Sync Manager{% endblock %}
+{% block content %}
+<section class="card">
+    <h1>Connect OneDrive</h1>
+    <p class="muted">Complete Microsoft device sign-in, then return here to finish linking this pod.</p>
+
+    <ol>
+        <li>Open <strong>{{ verification_uri }}</strong> in a browser tab.</li>
+        <li>Enter this code when prompted:</li>
+    </ol>
+
+    <pre>{{ user_code }}</pre>
+
+    {% if verification_uri_complete %}
+    <p class="muted">If supported by your tenant, this direct link may auto-fill the code:</p>
+    <pre>{{ verification_uri_complete }}</pre>
+    {% endif %}
+
+    <p class="muted">Code expires in {{ expires_in or "a few minutes" }} seconds.</p>
+
+    <form method="post" action="/auth/connect/complete" class="top-gap">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">I completed sign-in</button>
+    </form>
+
+    <a href="/dashboard"><button type="button" class="secondary">Back to Dashboard</button></a>
+</section>
+{% endblock %}

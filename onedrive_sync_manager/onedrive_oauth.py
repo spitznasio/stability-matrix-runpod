@@ -18,17 +18,14 @@ def _build_app() -> tuple[PublicClientApplication, Any]:
     return app, cache
 
 
-def get_authorization_flow() -> dict[str, Any]:
+def get_device_flow() -> dict[str, Any]:
     app, _cache = _build_app()
-    return app.initiate_auth_code_flow(
-        scopes=config.ONEDRIVE_SCOPES,
-        redirect_uri=config.ONEDRIVE_REDIRECT_URI,
-    )
+    return app.initiate_device_flow(scopes=config.ONEDRIVE_SCOPES)
 
 
-def complete_authorization_flow(flow: dict[str, Any], auth_response: dict[str, Any]) -> dict[str, Any]:
+def complete_device_flow(flow: dict[str, Any]) -> dict[str, Any]:
     app, cache = _build_app()
-    result = app.acquire_token_by_auth_code_flow(flow, auth_response)
+    result = app.acquire_token_by_device_flow(flow)
     persist_cache(cache)
     return result
 

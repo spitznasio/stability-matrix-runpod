@@ -18,7 +18,7 @@
             <tr>
                 <th>Created</th>
                 <th>Status</th>
-                <th>Target</th>
+                <th>App Folder Target</th>
                 <th>Progress</th>
                 <th>Conflict</th>
                 <th>Actions</th>
@@ -58,4 +58,11 @@
         {% endif %}
     </div>
 </section>
+{% if has_active_jobs %}
+<script>
+setInterval(function() {
+    window.location.reload();
+}, 3000);
+</script>
+{% endif %}
 {% endblock %}

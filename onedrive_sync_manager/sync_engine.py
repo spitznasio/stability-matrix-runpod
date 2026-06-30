@@ -39,13 +39,20 @@ def _graph_path(path: str) -> str:
     return quote(path.strip("/"), safe="/")
 
 
+def _approot_item_url(remote_path: str) -> str:
+    clean = remote_path.strip("/")
+    if not clean:
+        return "https://graph.microsoft.com/v1.0/me/drive/special/approot"
+    return f"https://graph.microsoft.com/v1.0/me/drive/special/approot:/{_graph_path(clean)}"
+
+
 def _local_signature(path: Path) -> str:
     stat = path.stat()
     return f"{stat.st_size}:{stat.st_mtime_ns}"
 
 
 async def _get_remote_file_metadata(client: httpx.AsyncClient, headers: dict[str, str], remote_file_path: str) -> dict[str, Any] | None:
-    url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{_graph_path(remote_file_path)}"
+    url = _approot_item_url(remote_file_path)
     response = await client.get(url, headers=headers)
     if response.status_code == 404:
         return None
@@ -54,6 +61,9 @@ async def _get_remote_file_metadata(client: httpx.AsyncClient, headers: dict[str
 
 
 async def ensure_remote_folder(client: httpx.AsyncClient, headers: dict[str, str], remote_folder: str) -> None:
+    # Trigger app folder materialization if it doesn't exist yet.
+    await client.get("https://graph.microsoft.com/v1.0/me/drive/special/approot", headers=headers)
+
     folder = remote_folder.strip("/")
     if not folder:
         return
@@ -61,14 +71,14 @@ async def ensure_remote_folder(client: httpx.AsyncClient, headers: dict[str, str
     current = ""
     for segment in folder.split("/"):
         current = f"{current}/{segment}" if current else segment
-        check_url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{_graph_path(current)}"
+        check_url = _approot_item_url(current)
         check_response = await client.get(check_url, headers=headers)
         if check_response.status_code == 404:
             parent = current.rsplit("/", 1)[0] if "/" in current else ""
             children_url = (
-                "https://graph.microsoft.com/v1.0/me/drive/root/children"
+                "https://graph.microsoft.com/v1.0/me/drive/special/approot/children"
                 if not parent
-                else f"https://graph.microsoft.com/v1.0/me/drive/root:/{_graph_path(parent)}:/children"
+                else f"https://graph.microsoft.com/v1.0/me/drive/special/approot:/{_graph_path(parent)}:/children"
             )
             create_response = await client.post(
                 children_url,
@@ -175,7 +185,7 @@ async def _upload_small_file(
     local_path: str,
     remote_path: str,
 ) -> None:
-    url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{_graph_path(remote_path)}:/content"
+    url = f"https://graph.microsoft.com/v1.0/me/drive/special/approot:/{_graph_path(remote_path)}:/content"
     data = Path(local_path).read_bytes()
     response = await client.put(url, headers=headers, content=data)
     response.raise_for_status()
@@ -188,7 +198,7 @@ async def _upload_large_file(
     remote_path: str,
     conflict_behavior: str,
 ) -> None:
-    create_url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{_graph_path(remote_path)}:/createUploadSession"
+    create_url = f"https://graph.microsoft.com/v1.0/me/drive/special/approot:/{_graph_path(remote_path)}:/createUploadSession"
     session_response = await client.post(
         create_url,
         headers=headers,

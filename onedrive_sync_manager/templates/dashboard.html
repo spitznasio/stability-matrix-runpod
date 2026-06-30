@@ -26,21 +26,22 @@
     </form>
     {% else %}
     <p class="muted">No OneDrive account connected yet.</p>
+    <p class="muted">Connection uses Microsoft device-code sign-in (no callback URL required).</p>
     <a href="/auth/connect"><button type="button">Connect OneDrive</button></a>
     {% endif %}
 </section>
 
 <section class="card">
     <h2>Manual Sync</h2>
-    <p class="muted">Source root is restricted to /workspace. Use a relative folder path inside it.</p>
+    <p class="muted">Source root is restricted to /workspace. Remote path is relative to OneDrive App Folder (Apps/&lt;app-name&gt;).</p>
     <form method="post" action="/sync/dry-run" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
         <label for="local_subpath">Local relative path</label>
         <input id="local_subpath" name="local_subpath" type="text" value="{{ sync_defaults.local_subpath }}" placeholder="models">
 
-        <label for="remote_folder">OneDrive target folder</label>
-        <input id="remote_folder" name="remote_folder" type="text" value="{{ sync_defaults.remote_folder }}" placeholder="onedrive-sync">
+        <label for="remote_folder">OneDrive app-folder subpath</label>
+        <input id="remote_folder" name="remote_folder" type="text" value="{{ sync_defaults.remote_folder }}" placeholder="(leave blank for app-folder root)">
 
         <label for="include_globs">Include globs (comma-separated)</label>
         <input id="include_globs" name="include_globs" type="text" value="{{ sync_defaults.include_globs }}" placeholder="*">
@@ -72,7 +73,7 @@
     <h2>Dry-Run Summary</h2>
     <ul>
         <li>Local root: {{ dry_run.local_root }}</li>
-        <li>Remote folder: {{ dry_run.remote_folder or '/' }}</li>
+        <li>App-folder subpath: {{ dry_run.remote_folder or '/' }}</li>
         <li>Conflict behavior: {{ dry_run.conflict_behavior }}</li>
         <li>Force rescan: {{ 'yes' if dry_run.force_rescan else 'no' }}</li>
         <li>Scanned files: {{ dry_run.summary.scanned_files }}</li>
@@ -150,7 +151,7 @@
         <li>Local authentication: enabled</li>
         <li>Session security: enabled</li>
         <li>Runpod-ready service port: 8002</li>
-        <li>Delegated OAuth: enabled</li>
+        <li>Delegated OAuth (device code): enabled</li>
         <li>Sync engine: dry-run + background upload job enabled</li>
     </ul>
 </section>

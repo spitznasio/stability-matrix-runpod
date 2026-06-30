@@ -18,7 +18,7 @@
     <p><strong>Started:</strong> {{ job.started_at or '-' }}</p>
     <p><strong>Finished:</strong> {{ job.finished_at or '-' }}</p>
     <p><strong>Local subpath:</strong> {{ job.local_subpath or '/' }}</p>
-    <p><strong>Remote folder:</strong> {{ job.remote_folder or '/' }}</p>
+    <p><strong>App-folder subpath:</strong> {{ job.remote_folder or '/' }}</p>
     <p><strong>Conflict behavior:</strong> {{ job.conflict_behavior }}</p>
     <p><strong>Force rescan:</strong> {{ 'yes' if job.force_rescan else 'no' }}</p>
     <p><strong>Uploaded files:</strong> {{ job.progress.files_uploaded }} / {{ job.progress.files_total }}</p>
@@ -39,4 +39,11 @@
     <pre>{% if job.events %}{% for event in job.events %}[{{ event.at }}] {{ event.message }}
 {% endfor %}{% else %}No events yet.{% endif %}</pre>
 </section>
+{% if job_is_active %}
+<script>
+setInterval(function() {
+    window.location.reload();
+}, 3000);
+</script>
+{% endif %}
 {% endblock %}

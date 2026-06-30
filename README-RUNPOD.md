@@ -39,11 +39,12 @@ If you're deploying from the RunPod template, this is already set — just make 
 | `ONEDRIVE_MANAGER_USERNAME` | Required for OneDrive Sync Manager | Local login username for the OneDrive Sync Manager UI (port 8002). |
 | `ONEDRIVE_MANAGER_PASSWORD_HASH` | Required for OneDrive Sync Manager | Bcrypt hash for local login password. Generate with `python -c "from passlib.context import CryptContext; print(CryptContext(schemes=['bcrypt']).hash('your-password'))"`. |
 | `ONEDRIVE_MANAGER_SESSION_SECRET` | Recommended | Signs the OneDrive Sync Manager session cookie. If unset, a new one is generated on every restart and all sessions are invalidated. |
-| `ONEDRIVE_CLIENT_ID` | Required for OneDrive Sync Manager | App registration client ID used for delegated OAuth sign-in. |
-| `ONEDRIVE_REDIRECT_URI` | Required for OneDrive Sync Manager | OAuth redirect URI. Use your pod URL, e.g. `https://<POD_ID>-8002.proxy.runpod.net/auth/callback`. |
+| `ONEDRIVE_CLIENT_ID` | Required for OneDrive Sync Manager | App registration client ID used for delegated OAuth sign-in. The app must allow public client/device-code flow. |
 | `ONEDRIVE_TENANT_ID` | Optional | Defaults to `common`. Set to your tenant ID for single-tenant auth. |
-| `ONEDRIVE_SCOPES` | Optional | Defaults to `offline_access Files.ReadWrite.All User.Read`. Override only if needed. |
+| `ONEDRIVE_SCOPES` | Optional | Defaults to `offline_access Files.ReadWrite.AppFolder User.Read`. Override only if needed. |
 | `ONEDRIVE_SYNC_LOCAL_BASE_ROOT` | Optional | Defaults to `/workspace`. Limits local sync path selection to this root. |
+| `ONEDRIVE_SYNC_JOB_HISTORY_MAX_JOBS` | Optional | Defaults to `250`. Oldest sync jobs are pruned automatically. |
+| `ONEDRIVE_SYNC_JOB_MAX_EVENTS` | Optional | Defaults to `200`. Oldest events per job are pruned automatically. |
 | `PYTORCH_CUDA_ALLOC_CONF` | Optional | Defaults to `backend:cudaMallocAsync`. If you hit out-of-memory errors during generation, try `max_split_size_mb:512,expandable_segments:True` instead. |
 
 ## 4. Start the pod
@@ -83,9 +84,18 @@ Installs use your `CIVITAI_API_TOKEN` automatically, so downloads are faster and
 
 1. Open the **8002** proxy link.
 2. Sign in using `ONEDRIVE_MANAGER_USERNAME` and the password corresponding to `ONEDRIVE_MANAGER_PASSWORD_HASH`.
-3. Click **Connect OneDrive** to complete Microsoft OAuth.
-4. Run **Dry-Run** to preview uploads from `/workspace` (or your configured base root).
-5. Click **Start Sync Job** to run one-way upload sync.
+3. Click **Connect OneDrive**.
+4. Complete Microsoft device-code sign-in using the code shown in the app.
+5. Run **Dry-Run** to preview uploads from `/workspace` (or your configured base root).
+6. Click **Start Sync Job** to run one-way upload sync.
+
+Uploads are scoped to the OneDrive app folder (`Apps/<your-app-name>`). The configured remote folder is a subpath inside that app folder.
+
+#### Sync job lifecycle and cancellation
+
+- States: `queued`, `running`, `cancelling`, `cancelled`, `completed`, `failed`.
+- Use **Cancel** on the dashboard/history/detail pages to request cancellation.
+- While jobs are active, history and detail pages auto-refresh to show progress and final state transitions.
 
 ---
 

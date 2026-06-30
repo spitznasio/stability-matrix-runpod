@@ -7,6 +7,8 @@ from threading import Lock
 from typing import Any
 from uuid import uuid4
 
+from . import config
+
 STATE_DIR = Path("/workspace/onedrive_sync_manager")
 JOBS_PATH = STATE_DIR / "jobs.json"
 _LOCK = Lock()
@@ -26,8 +28,19 @@ def _read_jobs_unlocked() -> list[dict[str, Any]]:
 
 
 def _write_jobs_unlocked(jobs: list[dict[str, Any]]) -> None:
+    max_jobs = max(1, config.JOB_HISTORY_MAX_JOBS)
+    max_events = max(10, config.JOB_HISTORY_MAX_EVENTS_PER_JOB)
+
+    ordered = sorted(jobs, key=lambda j: j.get("created_at", ""))
+    trimmed_jobs = ordered[-max_jobs:]
+
+    normalized_jobs: list[dict[str, Any]] = []
+    for job in trimmed_jobs:
+        events = list(job.get("events", []))[-max_events:]
+        normalized_jobs.append({**job, "events": events})
+
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    JOBS_PATH.write_text(json.dumps(jobs, indent=2), encoding="utf-8")
+    JOBS_PATH.write_text(json.dumps(normalized_jobs, indent=2), encoding="utf-8")
 
 
 def create_job(
@@ -138,7 +151,7 @@ def append_job_event(job_id: str, message: str) -> dict[str, Any] | None:
                 continue
             events = list(job.get("events", []))
             events.append({"at": _now_iso(), "message": message})
-            events = events[-200:]
+            events = events[-max(10, config.JOB_HISTORY_MAX_EVENTS_PER_JOB):]
             merged = {
                 **job,
                 "events": events,
