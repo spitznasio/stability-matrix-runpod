@@ -24,7 +24,7 @@ Run **InvokeAI** (Stable Diffusion), **code-server** (VS Code), and a **CivitAI 
    - **Container Disk**: 10 GB minimum
    - **Volume Disk**: 100+ GB (for models and outputs)
 
-- **Port Mapping**: Expose `8080`, `8000`, `9090`, `8002` as HTTP
+- **Port Mapping**: Expose `8080`, `8000`, `9090`, `8001`, `8002` as HTTP
 
 ### 2. Set environment variables
 
@@ -45,16 +45,16 @@ CIVITAI_API_TOKEN=your_token_here
 - `ONEDRIVE_MANAGER_SESSION_SECRET` — session-signing secret for OneDrive Sync Manager
 - `ONEDRIVE_CLIENT_ID` — Microsoft app registration client ID (app must allow public client/device-code flow)
 - `ONEDRIVE_TENANT_ID` — optional, defaults to `common`
-- `ONEDRIVE_SCOPES` — optional, defaults to `offline_access Files.ReadWrite.AppFolder User.Read`
+- `ONEDRIVE_SCOPES` — optional, defaults to `Files.ReadWrite.AppFolder User.Read` (`offline_access`, `openid`, and `profile` are filtered because MSAL treats them as reserved)
 - `ONEDRIVE_SYNC_LOCAL_BASE_ROOT` — optional, defaults to `/workspace`
 - `ONEDRIVE_SYNC_JOB_HISTORY_MAX_JOBS` — optional, defaults to `250` (oldest jobs are pruned)
 - `ONEDRIVE_SYNC_JOB_MAX_EVENTS` — optional, defaults to `200` (oldest events per job are pruned)
 
 ### 3. Start the pod
 
-Click **Start Pod**. Wait ~2 minutes for services to boot. RunPod will show proxy URLs for ports 8080, 8000, 9090, and 8002.
+Click **Start Pod**. Wait ~2 minutes for services to boot. RunPod will show proxy URLs for ports 8080, 8000, 9090, 8001, and 8002.
 
-Done! All three services are now running.
+Done! All services are now running.
 
 ---
 
@@ -80,6 +80,17 @@ The CivitAI Manager lets you search and install models without leaving RunPod.
 5. Refresh InvokeAI and the model appears in the model selector
 
 **Tip:** The CivitAI Manager respects your API token for faster downloads.
+
+### Server Admin — System Control & Telemetry
+
+A centralized dashboard for managing all services running on the pod.
+
+1. Click the **8001** proxy link (or `https://<pod-id>-8001.proxy.runpod.net`)
+2. View real-time GPU, network, and system telemetry
+3. Start, stop, or restart services (InvokeAI, code-server, CivitAI Manager, OneDrive Sync Manager)
+4. View live logs for each service for debugging
+
+**Note:** Set `SERVER_ADMIN_USERNAME` and `SERVER_ADMIN_PASSWORD` environment variables to enable login (recommended, since this app can control services).
 
 ### code-server — Terminal & Scripts
 
@@ -201,9 +212,9 @@ To override, set them as RunPod env vars before starting the pod.
 
 ### CivitAI Manager won't load / shows an error
 
-1. Check that the pod is running and all three ports (8080, 8000, 9090) are exposed.
+1. Check that the pod is running and all required ports (8080, 8000, 9090, 8001, 8002) are exposed.
 2. Wait ~30 seconds and refresh — services take time to boot.
-3. Check the pod's **Logs** tab for errors.
+3. Check the pod's **Logs** tab or the **Server Admin** service logs for errors.
 
 ### InvokeAI is slow to generate
 

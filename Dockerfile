@@ -39,7 +39,8 @@ RUN pip install --no-cache-dir \
     python-multipart \
     itsdangerous \
     psutil \
-    "passlib[bcrypt]"
+    "passlib[bcrypt]" \
+    cachetools
 
 # boto3 for the /workspace S3 helper scripts (upload/download_*_s3.py). The AWS
 # CLI v2 install above bundles its own Python and doesn't expose boto3 here.
@@ -75,8 +76,10 @@ COPY onedrive_sync_manager /opt/onedrive_sync_manager
 ENV INVOKEAI_ROOT=/workspace/invokeai
 ENV INVOKEAI_HOST=0.0.0.0
 ENV INVOKEAI_PORT=9090
+# Linux memory leak fix: force blocks >1MB to use mmap for immediate release.
+# Value is in bytes; 1048576 = 1MB. Can be overridden in RunPod env vars if needed.
+ENV MALLOC_MMAP_THRESHOLD_=1048576
 ENV PYTORCH_CUDA_ALLOC_CONF=backend:cudaMallocAsync
-ENV CUDA_CACHE_MAXSIZE=4294967296
 ENV SD_USE_FP4=1
 ENV CUDA_MODULE_LOADING=LAZY
 ENV HF_HUB_ENABLE_HF_TRANSFER=1

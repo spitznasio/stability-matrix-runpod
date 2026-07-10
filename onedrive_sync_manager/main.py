@@ -1,3 +1,4 @@
+import logging
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +29,14 @@ from .job_store import (
     update_job,
 )
 from .sync_engine import build_sync_plan, execute_sync_plan
+
+# basicConfig here (not in a __main__ guard) because uvicorn imports this
+# module directly rather than running it as a script — this is the only
+# place the process-wide root logger gets configured. Output goes to
+# stdout/stderr, which the Server Admin supervisor already redirects to
+# /tmp/server-admin/logs/onedrive-sync.log.
+logging.basicConfig(level=config.LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 LOGIN_EXEMPT_PATHS = {"/login", "/health", "/static"}
 SYNC_TASKS: dict[str, asyncio.Task] = {}
@@ -75,6 +84,7 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 def startup_validate_config() -> None:
     config.validate_required_auth_config()
     config.validate_required_oauth_config()
+    logger.info("OneDrive Sync Manager starting up")
 
 
 async def _get_onedrive_status() -> dict:
@@ -144,8 +154,10 @@ async def login_submit(
     if valid_user and valid_password:
         request.session["authenticated"] = True
         request.session["username"] = config.AUTH_USERNAME
+        logger.info("Login succeeded for user %r", username)
         return RedirectResponse(url=next_url, status_code=303)
 
+    logger.warning("Login failed for user %r", username)
     return templates.TemplateResponse(
         request,
         "login.html",
@@ -236,11 +248,19 @@ async def sync_job_view(request: Request, job_id: str):
 
 @app.get("/auth/connect")
 async def auth_connect(request: Request) -> RedirectResponse:
-    flow = get_device_flow()
+    try:
+        flow = get_device_flow()
+    except Exception as exc:
+        logger.warning("Unable to start device sign-in flow", exc_info=True)
+        request.session["oauth_error"] = f"Unable to start device sign-in: {type(exc).__name__}: {exc}"
+        return RedirectResponse(url="/dashboard", status_code=303)
+
     if "user_code" not in flow:
+        logger.warning("Device flow init returned no user_code: %s", flow.get("error_description"))
         request.session["oauth_error"] = flow.get("error_description", "Unable to start device sign-in.")
         return RedirectResponse(url="/dashboard", status_code=303)
 
+    logger.info("Device sign-in flow started")
     request.session["oauth_device_flow"] = flow
     return templates.TemplateResponse(
         request,
@@ -266,12 +286,21 @@ async def auth_connect_complete(request: Request, csrf_token: str = Form(...)) -
         request.session["oauth_error"] = "Missing device sign-in state. Start the connection again."
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    result = complete_device_flow(flow)
+    try:
+        result = complete_device_flow(flow)
+    except Exception as exc:
+        logger.warning("OAuth device sign-in failed", exc_info=True)
+        request.session.pop("oauth_device_flow", None)
+        request.session["oauth_error"] = f"OAuth sign-in failed: {type(exc).__name__}: {exc}"
+        return RedirectResponse(url="/dashboard", status_code=303)
+
     request.session.pop("oauth_device_flow", None)
 
     if "access_token" not in result:
+        logger.warning("OAuth device sign-in rejected: %s", result.get("error_description"))
         request.session["oauth_error"] = result.get("error_description", "OAuth sign-in failed.")
     else:
+        logger.info("OAuth device sign-in completed")
         request.session.pop("oauth_error", None)
     return RedirectResponse(url="/dashboard", status_code=303)
 
@@ -281,6 +310,7 @@ async def auth_disconnect(request: Request, csrf_token: str = Form(...)) -> Redi
     if not _validate_csrf_token(request, csrf_token):
         return RedirectResponse(url="/dashboard", status_code=303)
     disconnect()
+    logger.info("OneDrive account disconnected")
     request.session.pop("oauth_error", None)
     return RedirectResponse(url="/dashboard", status_code=303)
 
@@ -338,8 +368,10 @@ async def sync_dry_run(
             "force_rescan": bool(force_rescan),
             "sample": plan["items"][:20],
         }
+        logger.info("Dry run: %s", plan["summary"])
         request.session.pop("oauth_error", None)
     except Exception as exc:
+        logger.warning("Dry run failed for local_subpath=%r", local_subpath, exc_info=True)
         request.session["oauth_error"] = f"Dry run failed: {exc}"
 
     return RedirectResponse(url="/dashboard", status_code=303)
@@ -383,6 +415,7 @@ async def sync_start(
             force_rescan=bool(force_rescan),
         )
     except Exception as exc:
+        logger.warning("Failed to build sync plan for local_subpath=%r", local_subpath, exc_info=True)
         request.session["oauth_error"] = f"Failed to build sync plan: {exc}"
         return RedirectResponse(url="/dashboard", status_code=303)
 
@@ -393,6 +426,13 @@ async def sync_start(
         exclude_globs,
         conflict_behavior,
         force_rescan=bool(force_rescan),
+    )
+    logger.info(
+        "Sync job %s started: %r -> %r (%d files to upload)",
+        job["id"],
+        local_subpath,
+        remote_folder,
+        plan["summary"]["to_upload"],
     )
     update_job(
         job["id"],
@@ -443,6 +483,7 @@ async def sync_start(
                 finished_at=datetime.now(timezone.utc).isoformat(),
             )
             append_job_event(job["id"], "Job completed")
+            logger.info("Sync job %s completed", job["id"])
         except asyncio.CancelledError:
             update_job(
                 job["id"],
@@ -451,6 +492,7 @@ async def sync_start(
                 error=None,
             )
             append_job_event(job["id"], "Job cancelled by user request")
+            logger.info("Sync job %s cancelled", job["id"])
             raise
         except Exception as exc:
             update_job(
@@ -460,6 +502,7 @@ async def sync_start(
                 finished_at=datetime.now(timezone.utc).isoformat(),
             )
             append_job_event(job["id"], f"Job failed: {exc}")
+            logger.warning("Sync job %s failed", job["id"], exc_info=True)
         finally:
             SYNC_TASKS.pop(job["id"], None)
 
@@ -494,6 +537,7 @@ async def sync_cancel_job(request: Request, job_id: str, csrf_token: str = Form(
     if task and not task.done():
         update_job(job_id, status="cancelling")
         append_job_event(job_id, "Cancel requested")
+        logger.info("Cancel requested for sync job %s", job_id)
         task.cancel()
     else:
         update_job(

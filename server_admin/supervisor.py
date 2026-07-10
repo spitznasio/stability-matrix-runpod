@@ -79,6 +79,46 @@ SERVICES: dict[str, ServiceSpec] = {
         # adopts/kills a different uvicorn process in the same container.
         match_pattern=r"civitai_manager\.main:app",
     ),
+    "onedrive-sync": ServiceSpec(
+        key="onedrive-sync",
+        display_name="OneDrive Sync Manager",
+        start_cmd=[
+            "uvicorn",
+            "onedrive_sync_manager.main:app",
+            "--app-dir",
+            "/opt",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8002",
+        ],
+        # Deliberately specific (not a bare "uvicorn" match) so this never
+        # adopts/kills a different uvicorn process in the same container.
+        match_pattern=r"onedrive_sync_manager\.main:app",
+    ),
+    "aria2-rpc": ServiceSpec(
+        key="aria2-rpc",
+        display_name="aria2 (download daemon)",
+        start_cmd=[
+            "aria2c",
+            "--enable-rpc",
+            "--rpc-listen-all=false",
+            "--rpc-listen-port=6800",
+            f"--rpc-secret={os.environ.get('ARIA2_RPC_SECRET', '')}",
+            "--dir=/workspace/civitai-downloads",
+            "--continue=true",
+            "--max-connection-per-server=16",
+            "--split=16",
+            "--min-split-size=1M",
+            "--max-concurrent-downloads=3",
+            "--max-tries=5",
+            "--retry-wait=5",
+            "--save-session=/tmp/server-admin/aria2.session",
+            "--save-session-interval=30",
+            "--allow-overwrite=true",
+        ],
+        match_pattern=r"aria2c.*--enable-rpc",
+    ),
 }
 
 

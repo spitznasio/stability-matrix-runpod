@@ -1,3 +1,4 @@
+import logging
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -11,9 +12,19 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import config
+from .aria2_client import Aria2Client
+from .aria2_client import TERMINAL_STATUSES as ARIA2_TERMINAL_STATUSES
 from .civitai_client import CivitAIClient
 from .formatting import format_commercial_use
 from .invokeai_client import InvokeAIClient
+
+# basicConfig here (not in a __main__ guard) because uvicorn imports this
+# module directly rather than running it as a script — this is the only
+# place the process-wide root logger gets configured. Output goes to
+# stdout/stderr, which the Server Admin supervisor already redirects to
+# /tmp/server-admin/logs/civitai-manager.log.
+logging.basicConfig(level=config.LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 LOGIN_EXEMPT_PATHS = {"/login", "/health"}
 
@@ -36,13 +47,17 @@ BASE_MODEL_CHOICES = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("civitai_manager starting up")
     app.state.civitai = CivitAIClient()
     app.state.invokeai = InvokeAIClient()
+    app.state.aria2 = Aria2Client()
     try:
         yield
     finally:
         await app.state.civitai.aclose()
         await app.state.invokeai.aclose()
+        await app.state.aria2.aclose()
+        logger.info("civitai_manager shutting down")
 
 
 class SessionAuthMiddleware(BaseHTTPMiddleware):
@@ -82,7 +97,9 @@ async def login_submit(
         and secrets.compare_digest(password, config.AUTH_PASSWORD)
     ):
         request.session["authenticated"] = True
+        logger.info("Login succeeded for user %r", username)
         return RedirectResponse(url=next, status_code=303)
+    logger.warning("Login failed for user %r", username)
     return templates.TemplateResponse(
         request, "login.html", {"next": next, "error": "Invalid username or password."}, status_code=401
     )
@@ -107,6 +124,11 @@ def render_error(request: Request, message: str, status_code: int = 200) -> HTML
 
 @app.exception_handler(httpx.HTTPError)
 async def httpx_error_handler(request: Request, exc: httpx.HTTPError) -> HTMLResponse:
+    # This is the only place the real exception is visible — the generic
+    # user-facing message alone can't tell you which upstream call failed or
+    # why. Logging it here means the log viewer shows the actual cause
+    # instead of requiring a manual curl against InvokeAI/aria2 to diagnose.
+    logger.exception("Unhandled upstream error on %s %s", request.method, request.url.path, exc_info=exc)
     return render_error(request, f"Upstream request failed: {exc}", status_code=502)
 
 
@@ -130,6 +152,7 @@ async def browse(
     nsfw: str = "true",
     cursor: str = "",
     prev: str = "",
+    refresh: bool = False,
 ):
     # CivitAI's search API only supports cursor-based pagination (a `page`
     # number can't be combined with a text `query`), so "Prev" is implemented
@@ -145,6 +168,7 @@ async def browse(
         period=period,
         nsfw=nsfw_bool,
         cursor=cursor,
+        refresh=refresh,
     )
     # "_root_" is a sentinel for "the first page" (cursor=""), since an empty
     # string can't be told apart from "no entry" once joined into the `prev`
@@ -174,9 +198,9 @@ async def browse(
 
 
 @app.get("/models/{model_id}", response_class=HTMLResponse)
-async def model_detail(request: Request, model_id: int):
-    model = await request.app.state.civitai.get_model(model_id)
-    model["allowCommercialUse_display"] = format_commercial_use(model.get("allowCommercialUse"))
+async def model_detail(request: Request, model_id: int, refresh: bool = False):
+    model = await request.app.state.civitai.get_model(model_id, refresh=refresh)
+    model = {**model, "allowCommercialUse_display": format_commercial_use(model.get("allowCommercialUse"))}
 
     return templates.TemplateResponse(
         request, "model_detail.html", {"model": model, "active_nav": "browse"}
@@ -184,13 +208,13 @@ async def model_detail(request: Request, model_id: int):
 
 
 @app.get("/models/{model_id}/versions/{version_id}/gallery", response_class=HTMLResponse)
-async def version_gallery(request: Request, model_id: int, version_id: int):
+async def version_gallery(request: Request, model_id: int, version_id: int, refresh: bool = False):
     # Lazily enriches a version's thumbnails with generation metadata (prompt,
     # sampler, etc.) — only fetched once a version is actually expanded, since
     # fetching this for every version up front doesn't scale to models with
     # dozens of versions (one extra request per version).
     try:
-        images = await request.app.state.civitai.get_version_images(version_id)
+        images = await request.app.state.civitai.get_version_images(version_id, refresh=refresh)
     except httpx.HTTPError:
         images = []
     return templates.TemplateResponse(request, "_gallery.html", {"images": images})
@@ -198,15 +222,18 @@ async def version_gallery(request: Request, model_id: int, version_id: int):
 
 @app.post("/install", response_class=HTMLResponse)
 async def install(request: Request, download_url: str = Form(...)):
+    logger.info("Install requested: %s", download_url)
     try:
         job = await request.app.state.invokeai.install_model(
             download_url, config.CIVITAI_API_TOKEN
         )
     except httpx.HTTPError:
+        logger.warning("Install request rejected by InvokeAI for %s", download_url, exc_info=True)
         return render_error(
             request,
             "InvokeAI is not ready yet, or the install request was rejected — try again shortly.",
         )
+    logger.info("Install job %s started for %s (status=%s)", job.get("id"), download_url, job.get("status"))
     return templates.TemplateResponse(
         request,
         "_install_status.html",
@@ -219,11 +246,52 @@ async def install_status(request: Request, job_id: str):
     try:
         job = await request.app.state.invokeai.get_install_job(job_id)
     except httpx.HTTPError:
+        logger.warning("Lost contact with InvokeAI polling install job %s", job_id, exc_info=True)
         return render_error(request, "Lost contact with InvokeAI while checking install status.")
+    if job.get("status") in TERMINAL_STATUSES:
+        logger.info("Install job %s reached terminal status %s", job_id, job.get("status"))
     return templates.TemplateResponse(
         request,
         "_install_status.html",
         {"job": job, "terminal": job.get("status") in TERMINAL_STATUSES},
+    )
+
+
+@app.post("/download", response_class=HTMLResponse)
+async def download(
+    request: Request, download_url: str = Form(...), filename: str = Form(...), sha256: str = Form("")
+):
+    logger.info("Download-to-folder requested: %s -> %s", download_url, filename)
+    try:
+        gid = await request.app.state.aria2.add_download(download_url, filename, sha256 or None)
+        job = await request.app.state.aria2.tell_status(gid)
+    except httpx.HTTPError:
+        logger.warning("aria2 daemon unreachable queueing download for %s", filename, exc_info=True)
+        return render_error(
+            request,
+            "The download daemon is not reachable right now — try again shortly.",
+        )
+    logger.info("Download gid=%s queued for %s (status=%s)", gid, filename, job.get("status"))
+    return templates.TemplateResponse(
+        request,
+        "_download_status.html",
+        {"job": job, "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES},
+    )
+
+
+@app.get("/download/{gid}/status", response_class=HTMLResponse)
+async def download_status(request: Request, gid: str):
+    try:
+        job = await request.app.state.aria2.tell_status(gid)
+    except httpx.HTTPError:
+        logger.warning("Lost contact with aria2 polling gid=%s", gid, exc_info=True)
+        return render_error(request, "Lost contact with the download daemon while checking status.")
+    if job.get("status") in ARIA2_TERMINAL_STATUSES:
+        logger.info("Download gid=%s reached terminal status %s", gid, job.get("status"))
+    return templates.TemplateResponse(
+        request,
+        "_download_status.html",
+        {"job": job, "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES},
     )
 
 

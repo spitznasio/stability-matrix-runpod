@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import logging
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -8,6 +9,8 @@ from urllib.parse import quote
 import httpx
 
 from .manifest_store import load_manifest, save_manifest, set_manifest_entry
+
+logger = logging.getLogger(__name__)
 
 SMALL_UPLOAD_LIMIT = 4 * 1024 * 1024
 UPLOAD_CHUNK_SIZE = 5 * 1024 * 1024
@@ -90,6 +93,7 @@ async def ensure_remote_folder(client: httpx.AsyncClient, headers: dict[str, str
                 },
             )
             create_response.raise_for_status()
+            logger.debug("Created remote folder segment: %s", current)
         else:
             check_response.raise_for_status()
 
@@ -161,6 +165,15 @@ async def build_sync_plan(
     uploads = [item for item in plan_items if item["action"] == "upload"]
     unchanged = [item for item in plan_items if item["action"] == "skip"]
     bytes_total = sum(item["size"] for item in uploads)
+
+    logger.info(
+        "Sync plan built for %s -> %s: %d to upload, %d unchanged, %d excluded",
+        local_root,
+        remote_folder.strip("/"),
+        len(uploads),
+        len(unchanged),
+        skipped,
+    )
 
     return {
         "local_root": str(local_root),
@@ -275,6 +288,9 @@ async def execute_sync_plan(
                     attempt += 1
                     if attempt > max_retries:
                         files_failed += 1
+                        logger.warning(
+                            "Upload failed for %s after %d retries", item["relative_path"], max_retries, exc_info=True
+                        )
                         await progress_callback(
                             files_uploaded=files_uploaded,
                             bytes_uploaded=bytes_uploaded,
@@ -284,6 +300,9 @@ async def execute_sync_plan(
                             f"Failed {item['relative_path']} after {max_retries} retries: {exc}"
                         )
                         raise
+                    logger.info(
+                        "Retry %d/%d for %s due to: %s", attempt, max_retries, item["relative_path"], exc
+                    )
                     await event_callback(
                         f"Retry {attempt}/{max_retries} for {item['relative_path']} due to: {exc}"
                     )

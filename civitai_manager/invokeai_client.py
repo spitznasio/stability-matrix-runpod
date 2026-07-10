@@ -1,6 +1,10 @@
+import logging
+
 import httpx
 
 from . import config
+
+logger = logging.getLogger(__name__)
 
 
 class InvokeAIClient:
@@ -15,6 +19,7 @@ class InvokeAIClient:
         if access_token:
             params["access_token"] = access_token
 
+        logger.debug("POST /api/v2/models/install source=%s", download_url)
         response = await self._client.post("/api/v2/models/install", params=params, json={})
         response.raise_for_status()
         return response.json()

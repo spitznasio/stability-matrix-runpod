@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from msal import PublicClientApplication
 
 from . import config
 from .token_store import clear_cache, load_cache, persist_cache
+
+logger = logging.getLogger(__name__)
 
 
 def _build_app() -> tuple[PublicClientApplication, Any]:
@@ -37,8 +40,11 @@ def acquire_access_token_silent() -> dict[str, Any] | None:
         return None
     result = app.acquire_token_silent(config.ONEDRIVE_SCOPES, account=accounts[0])
     persist_cache(cache)
+    if result is None:
+        logger.debug("Silent token acquisition returned no result (re-auth required)")
     return result
 
 
 def disconnect() -> None:
+    logger.info("Clearing MSAL token cache")
     clear_cache()

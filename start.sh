@@ -1,6 +1,13 @@
 #!/bin/bash
 
 mkdir -p /workspace/invokeai
+mkdir -p /workspace/civitai-downloads
+
+# Secret shared between the aria2 RPC daemon and CivitAI Manager (the only
+# client that talks to it). Generated per boot if not set as a RunPod env
+# var; exported before any supervised process starts so both the aria2c
+# process and civitai-manager inherit the same value via os.environ.
+export ARIA2_RPC_SECRET="${ARIA2_RPC_SECRET:-$(python3 -c 'import secrets; print(secrets.token_hex(32))')}"
 
 # Inject CivitAI API token into InvokeAI config before the server starts.
 # Set CIVITAI_API_TOKEN as a RunPod environment variable — never hardcode it.
@@ -31,13 +38,16 @@ with open(config_path, "w") as f:
 PYEOF
 fi
 
-# code-server (8080), InvokeAI (9090), and CivitAI Manager (8000) are started
-# and supervised by the Server Admin app's process supervisor, so they get
-# PID tracking, log capture, and start/stop/restart control from its UI.
+# code-server (8080), InvokeAI (9090), CivitAI Manager (8000), and OneDrive
+# Sync Manager (8002) are started and supervised by the Server Admin app's
+# process supervisor, so they get PID tracking, log capture, and
+# start/stop/restart control from its UI.
 # --auth none for code-server: RunPod network isolation handles access control.
 python3 -m server_admin.supervisor start code-server
 python3 -m server_admin.supervisor start invokeai
+python3 -m server_admin.supervisor start aria2-rpc
 python3 -m server_admin.supervisor start civitai-manager
+python3 -m server_admin.supervisor start onedrive-sync
 
 # Server Admin web app on port 8001
 # Set SERVER_ADMIN_USERNAME / SERVER_ADMIN_PASSWORD as RunPod env vars to
@@ -49,15 +59,13 @@ uvicorn server_admin.main:app \
     --host 0.0.0.0 \
     --port 8001 &
 
-# OneDrive Sync Manager web app on port 8002.
+# OneDrive Sync Manager web app on port 8002, started above via the Server
+# Admin supervisor (key: onedrive-sync) for PID tracking, log capture, and
+# start/stop/restart control from its UI.
 # Local auth is mandatory for this service. Set these RunPod env vars:
 # - ONEDRIVE_MANAGER_USERNAME
 # - ONEDRIVE_MANAGER_PASSWORD_HASH
 # - ONEDRIVE_MANAGER_SESSION_SECRET (recommended, otherwise generated on boot)
-uvicorn onedrive_sync_manager.main:app \
-    --app-dir /opt \
-    --host 0.0.0.0 \
-    --port 8002 &
 
 echo "Services started:"
 echo "  code-server     : http://0.0.0.0:8080"

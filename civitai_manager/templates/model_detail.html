@@ -7,6 +7,7 @@
   <div class="sheet__header">
     <h1 class="sheet__title">{{ model.name }}</h1>
     <span class="badge">{{ model.type }}</span>
+    <a class="back" href="?refresh=1">&#8635; Refresh</a>
   </div>
   <div class="sheet__meta">
     by {{ model.creator.username if model.creator else "unknown" }}
@@ -86,6 +87,12 @@
               <form hx-post="/install" hx-target="closest .version" hx-swap="beforeend">
                 <input type="hidden" name="download_url" value="{{ file.downloadUrl }}">
                 <button type="submit" class="btn btn--accent">Install</button>
+              </form>
+              <form hx-post="/download" hx-target="closest .version" hx-swap="beforeend">
+                <input type="hidden" name="download_url" value="{{ file.downloadUrl }}">
+                <input type="hidden" name="filename" value="{{ file.name }}">
+                <input type="hidden" name="sha256" value="{{ file.hashes.SHA256 or '' }}">
+                <button type="submit" class="btn">Download to folder</button>
               </form>
             </td>
           </tr>

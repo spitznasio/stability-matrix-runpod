@@ -1,0 +1,19 @@
+<div
+  id="download-job-{{ job.get('gid', 'pending') }}"
+  class="install-status"
+  {% if not terminal %}
+  hx-get="/download/{{ job.get('gid') }}/status"
+  hx-trigger="load delay:2s, every 2s [document.visibilityState=='visible']"
+  hx-swap="outerHTML"
+  {% endif %}
+>
+  <span class="install-status__line">Download: {{ job.get('status', 'pending') }}</span>
+  {% if job.get('completedLength') and job.get('totalLength') %}
+  <span class="install-status__bytes">{{ job.completedLength }} / {{ job.totalLength }} bytes{% if job.get('downloadSpeed') %} &middot; {{ (job.downloadSpeed | int // 1024) }} KB/s{% endif %}</span>
+  {% endif %}
+  {% if terminal and job.get('status') == 'complete' %}
+  <span class="stamp stamp--ok stamp--thunk">DOWNLOADED</span>
+  {% elif terminal %}
+  <span class="stamp stamp--danger">DOWNLOAD FAILED: {{ job.get('errorMessage', '') }}</span>
+  {% endif %}
+</div>
