@@ -69,7 +69,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 # passing --app-dir, matching how uvicorn is invoked for the two web apps.
 ENV PYTHONPATH=/opt
 
-EXPOSE 8080 8000 9090 8001
+EXPOSE 8080 8000 9090 8001 8002
 
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
