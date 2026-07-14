@@ -55,12 +55,28 @@ class Aria2Client:
             "out": _sanitize_filename(filename),
             "continue": "true",
         }
-        if config.CIVITAI_API_TOKEN:
-            options["header"] = [f"Authorization: Bearer {config.CIVITAI_API_TOKEN}"]
+        resolved_url = await self._resolve_download_url(url) if config.CIVITAI_API_TOKEN else url
         if sha256:
             options["checksum"] = f"sha-256={sha256}"
         logger.debug("aria2.addUri out=%s checksum=%s", options["out"], bool(sha256))
-        return await self._call("aria2.addUri", [[url], options])
+        return await self._call("aria2.addUri", [[resolved_url], options])
+
+    async def _resolve_download_url(self, url: str) -> str:
+        # CivitAI's download endpoint 307-redirects to a presigned, short-lived
+        # Cloudflare R2 URL. aria2 forwards any custom header (e.g. our
+        # Authorization header) across that redirect too, and R2 rejects the
+        # request with 400 because of the extra header on top of its own
+        # query-string signature. So resolve the redirect ourselves with the
+        # auth header on this one hop, and hand aria2 only the bare presigned
+        # URL — no header needed, and the long-lived API token never reaches
+        # aria2 (which may persist download URLs in its session/log files).
+        headers = {"Authorization": f"Bearer {config.CIVITAI_API_TOKEN}"}
+        async with self._client.stream("GET", url, headers=headers, follow_redirects=False) as response:
+            location = response.headers.get("location")
+            if 300 <= response.status_code < 400 and location:
+                return location
+            response.raise_for_status()
+            return str(response.url)
 
     async def tell_status(self, gid: str) -> dict:
         keys = ["gid", "status", "completedLength", "totalLength", "downloadSpeed", "errorCode", "errorMessage", "files"]
