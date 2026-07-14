@@ -47,7 +47,7 @@ RUN pip install --no-cache-dir \
 RUN pip install --no-cache-dir boto3
 
 # Pin InvokeAI so builds are reproducible unless this arg is intentionally bumped.
-ARG INVOKEAI_VERSION=6.13.0
+ARG INVOKEAI_VERSION=6.13.6
 
 # Install InvokeAI first so its dependency resolver picks a compatible torch version,
 # then force-reinstall cu130 wheels to ensure Blackwell (sm_120) GPU support.
