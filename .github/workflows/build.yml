@@ -11,7 +11,6 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  INVOKEAI_VERSION: "6.13.0"
 
 jobs:
   build:
@@ -41,6 +40,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Preflight version pins
+        run: |
+          echo "5090 Dockerfile INVOKEAI_VERSION pin:"
+          grep -E '^ARG INVOKEAI_VERSION=' Dockerfile || true
+          echo "4090 Dockerfile InvokeAI install pin:"
+          grep -E 'invokeai==' Dockerfile.4090 || true
+
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -57,8 +63,6 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64
-          build-args: |
-            INVOKEAI_VERSION=${{ env.INVOKEAI_VERSION }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -91,6 +95,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Preflight version pins
+        run: |
+          echo "5090 Dockerfile INVOKEAI_VERSION pin:"
+          grep -E '^ARG INVOKEAI_VERSION=' Dockerfile || true
+          echo "4090 Dockerfile InvokeAI install pin:"
+          grep -E 'invokeai==' Dockerfile.4090 || true
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -98,8 +109,6 @@ jobs:
           file: Dockerfile.4090
           push: true
           platforms: linux/amd64
-          build-args: |
-            INVOKEAI_VERSION=${{ env.INVOKEAI_VERSION }}
           tags: ghcr.io/${{ github.repository_owner }}/stability-matrix-runpod:main-4090
           cache-from: type=gha
           cache-to: type=gha,mode=max
