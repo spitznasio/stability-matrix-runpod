@@ -25,3 +25,4 @@ __pycache__/
 .venv/
 plan-oneDriveSync.prompt.md
 civitai_manager/docs/*
+.playwright-mcp/
