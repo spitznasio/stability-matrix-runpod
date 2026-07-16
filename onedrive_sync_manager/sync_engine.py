@@ -49,6 +49,15 @@ def _approot_item_url(remote_path: str) -> str:
     return f"https://graph.microsoft.com/v1.0/me/drive/special/approot:/{_graph_path(clean)}"
 
 
+def _raise_for_status(response: httpx.Response) -> None:
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise httpx.HTTPStatusError(
+            f"{exc}: {response.text}", request=exc.request, response=exc.response
+        ) from exc
+
+
 def _local_signature(path: Path) -> str:
     stat = path.stat()
     return f"{stat.st_size}:{stat.st_mtime_ns}"
@@ -59,7 +68,7 @@ async def _get_remote_file_metadata(client: httpx.AsyncClient, headers: dict[str
     response = await client.get(url, headers=headers)
     if response.status_code == 404:
         return None
-    response.raise_for_status()
+    _raise_for_status(response)
     return response.json()
 
 
@@ -92,10 +101,10 @@ async def ensure_remote_folder(client: httpx.AsyncClient, headers: dict[str, str
                     "@microsoft.graph.conflictBehavior": "replace",
                 },
             )
-            create_response.raise_for_status()
+            _raise_for_status(create_response)
             logger.debug("Created remote folder segment: %s", current)
         else:
-            check_response.raise_for_status()
+            _raise_for_status(check_response)
 
 
 async def build_sync_plan(
@@ -201,7 +210,7 @@ async def _upload_small_file(
     url = f"https://graph.microsoft.com/v1.0/me/drive/special/approot:/{_graph_path(remote_path)}:/content"
     data = Path(local_path).read_bytes()
     response = await client.put(url, headers=headers, content=data)
-    response.raise_for_status()
+    _raise_for_status(response)
 
 
 async def _upload_large_file(
@@ -217,7 +226,7 @@ async def _upload_large_file(
         headers=headers,
         json={"item": {"@microsoft.graph.conflictBehavior": conflict_behavior}},
     )
-    session_response.raise_for_status()
+    _raise_for_status(session_response)
     upload_url = session_response.json()["uploadUrl"]
 
     path = Path(local_path)
@@ -234,7 +243,7 @@ async def _upload_large_file(
             }
             upload_response = await client.put(upload_url, headers=chunk_headers, content=chunk)
             if upload_response.status_code not in (200, 201, 202):
-                upload_response.raise_for_status()
+                _raise_for_status(upload_response)
             start = end + 1
 
 
