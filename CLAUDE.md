@@ -17,11 +17,13 @@ The original project goal was Stability Matrix — the repo name and GHCR image 
 - [start.sh](start.sh) — container entrypoint (shared by both variants); injects CivitAI token into `/workspace/invokeai/invokeai.yaml`, then starts code-server (port 8080), `invokeai-web` (port 9090), and the CivitAI Manager (port 8000) via the Server Admin process supervisor, then starts the Server Admin web app itself (port 8001)
 - [civitai_manager/](civitai_manager/) — FastAPI app for browsing/installing CivitAI models into InvokeAI; installed at `/opt/civitai_manager` (see Architecture Notes)
 - [server_admin/](server_admin/) — FastAPI app: system/GPU/network telemetry dashboard, start/stop/restart control over the other 3 services, and a log viewer; installed at `/opt/server_admin` (see Architecture Notes)
-- [.github/workflows/build.yml](.github/workflows/build.yml) — CI/CD: two parallel jobs, `build` (Dockerfile → `:main`) and `build-4090` (Dockerfile.4090 → `:main-4090`), both pushed to `ghcr.io/spitznasio/stability-matrix-runpod` on every push to `main`
+- [.github/workflows/build.yml](.github/workflows/build.yml) — CI/CD: `build` (Dockerfile → `:main`) runs on every push to `main`; `build-4090` (Dockerfile.4090 → `:main-4090`) is manual-only (`workflow_dispatch`), since the 5090/default image covers ~99% of usage. Both push to `ghcr.io/spitznasio/stability-matrix-runpod`. Build cache for both jobs is a registry cache (`ghcr.io/.../stability-matrix-runpod:buildcache` / `:buildcache-4090`), not GHA's `type=gha` cache — the latter's 10GB repo-wide cap and slow blob writes were adding 40+ minutes to every 5090 build re-exporting cache layers.
 
 ## Build & Deploy Workflow
 
-**Trigger a new image build:** push to `main` — GitHub Actions builds and pushes both variants in parallel: `:main` (5090, from `Dockerfile`) and `:main-4090` (4090, from `Dockerfile.4090`).
+**Trigger a new 5090 image build:** push to `main` — GitHub Actions builds and pushes `:main`.
+
+**Trigger a 4090 image build:** manual only — `gh workflow run build.yml` (or "Run workflow" in the Actions tab). A manual dispatch run always includes both `build` and `build-4090`; there's no way to run `build-4090` alone.
 
 **Check build status:**
 
