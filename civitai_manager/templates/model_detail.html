@@ -70,6 +70,7 @@
       </div>
       {% endif %}
 
+      <div class="status-messages" id="status-messages-{{ version.id }}"></div>
       <table class="files">
         <tbody>
         {% for file in version.files %}
@@ -84,11 +85,11 @@
               </span>
             </td>
             <td class="files__action">
-              <form hx-post="/install" hx-target="closest .version" hx-swap="beforeend">
+              <form hx-post="/install" hx-target="#status-messages-{{ version.id }}" hx-swap="innerHTML">
                 <input type="hidden" name="download_url" value="{{ file.downloadUrl }}">
                 <button type="submit" class="btn btn--accent">Install</button>
               </form>
-              <form hx-post="/download" hx-target="closest .version" hx-swap="beforeend">
+              <form hx-post="/download" hx-target="#status-messages-{{ version.id }}" hx-swap="innerHTML">
                 <input type="hidden" name="download_url" value="{{ file.downloadUrl }}">
                 <input type="hidden" name="filename" value="{{ file.name }}">
                 <input type="hidden" name="sha256" value="{{ file.hashes.SHA256 or '' }}">
