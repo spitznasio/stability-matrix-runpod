@@ -1,0 +1,19 @@
+<tr data-row-href="/models/{{ model.id }}{% if return_to %}?return_to={{ return_to }}{% endif %}" style="cursor:pointer;">
+  {% set thumb = model.modelVersions[0].images[0].url if model.modelVersions and model.modelVersions[0].images else None %}
+  <td>
+    <div class="results-table__model">
+      {% if thumb %}
+        <img class="results-table__thumb" src="{{ thumb }}" alt="" loading="lazy">
+      {% else %}
+        <div class="results-table__thumb"></div>
+      {% endif %}
+      <span class="results-table__name">{{ model.name }}</span>
+    </div>
+  </td>
+  <td><span class="card__type">{{ model.type }}</span></td>
+  <td class="results-table__creator">{{ model.creator.username if model.creator else "unknown" }}</td>
+  <td class="results-table__downloads">
+    <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+    {{ "{:,}".format(model.stats.downloadCount) if model.stats and model.stats.downloadCount else "0" }}
+  </td>
+</tr>

@@ -1,108 +1,62 @@
 {% extends "base.html" %}
 {% block title %}{{ model.name }} — CivitAI Manager{% endblock %}
 {% block content %}
-<a class="back" href="/browse">&lsaquo; Back to Browse</a>
+<div class="detail-shell">
+  <a class="back-link" href="{{ back_url }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    Back to results
+  </a>
 
-<div class="sheet">
-  <div class="sheet__header">
-    <h1 class="sheet__title">{{ model.name }}</h1>
-    <span class="badge">{{ model.type }}</span>
-    <a class="back" href="?refresh=1">&#8635; Refresh</a>
-  </div>
-  <div class="sheet__meta">
-    by {{ model.creator.username if model.creator else "unknown" }}
-    &middot; ★ {{ "%.1f"|format(model.stats.rating) if model.stats and model.stats.rating else "—" }}
-    ({{ "{:,}".format(model.stats.ratingCount) if model.stats and model.stats.ratingCount else 0 }} ratings)
-    &middot; ⬇ {{ "{:,}".format(model.stats.downloadCount) if model.stats and model.stats.downloadCount else 0 }} downloads
-  </div>
-  <div class="sheet__terms">
-    {% if model.tags %}<span class="terms__tags">Tags: {{ model.tags | map(attribute='name') | join(', ') if model.tags[0] is mapping else model.tags | join(', ') }}</span>{% endif %}
-    <span class="terms__item">License: {{ model.allowCommercialUse_display }}</span>
-    <span class="terms__item">Derivatives: {{ "Allowed" if model.allowDerivatives else "Not allowed" }}</span>
-    <span class="terms__item">NSFW: {{ "Yes" if model.nsfw else "No" }}</span>
-  </div>
-
-  {% if model.description %}
-  <section class="sheet__section">
-    <div class="sheet__description">{{ model.description | safe }}</div>
-  </section>
-  {% endif %}
-
-  <section class="sheet__section">
-    <div class="sheet__section-header">
-      <h2 class="sheet__heading">Versions</h2>
-      {% if model.modelVersions|length > 6 %}
-      <select class="version-jump" onchange="if(this.value){document.getElementById(this.value).open=true; document.getElementById(this.value).scrollIntoView({block:'start'});}">
-        <option value="">Jump to version&hellip; ({{ model.modelVersions|length }} total)</option>
-        {% for version in model.modelVersions %}
-        <option value="version-{{ version.id }}">{{ version.name }}{% if loop.first %} (latest){% endif %}</option>
+  <div class="detail-head">
+    <div class="detail-head__row">
+      <h1 class="detail-head__title">{{ model.name }}</h1>
+      <span style="display:flex; gap:1.25rem; align-items:baseline;">
+        <a class="civitai-link" href="?refresh=1{% if return_to %}&return_to={{ return_to }}{% endif %}{% if active_version %}&version={{ active_version.id }}{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          Refresh
+        </a>
+        <a class="civitai-link" href="{{ civitai_url }}" target="_blank" rel="noopener">
+          View on CivitAI
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+        </a>
+      </span>
+    </div>
+    <div class="tag-row">
+      <span class="tag tag--type">{{ model.type }}</span>
+      {% if model.tags %}
+        {% for t in model.tags %}
+        <span class="tag">{{ t.name if t is mapping else t }}</span>
         {% endfor %}
-      </select>
       {% endif %}
     </div>
-    {% for version in model.modelVersions %}
-    <details class="version" id="version-{{ version.id }}" {{ "open" if loop.first }}
-      {% if version.images %}
-      hx-get="/models/{{ model.id }}/versions/{{ version.id }}/gallery"
-      hx-trigger="{{ 'load once' if loop.first else 'toggle once' }}"
-      hx-target="#gallery-{{ version.id }}"
-      hx-swap="innerHTML"
-      {% endif %}
-    >
-      <summary class="version__summary">
-        {{ version.name }}{% if loop.first %} (latest){% endif %}
-        — {{ version.baseModel }}
-        &middot; ★ {{ "%.1f"|format(version.stats.rating) if version.stats and version.stats.rating else "—" }}
-        &middot; ⬇ {{ "{:,}".format(version.stats.downloadCount) if version.stats and version.stats.downloadCount else 0 }}
-      </summary>
+  </div>
 
-      {% if version.trainedWords %}
-      <p class="version__trigger-words">Trigger words: {% for w in version.trainedWords %}<code>{{ w }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+  <div class="detail-grid">
+    <div class="main-pane">
+      {% if model.description %}
+      <div class="desc is-collapsed" id="model-desc">{{ model.description | safe }}</div>
+      <button type="button" class="desc-toggle" onclick="var el=document.getElementById('model-desc'); var collapsed=el.classList.toggle('is-collapsed'); this.textContent = collapsed ? 'Show more' : 'Show less';">Show more</button>
       {% endif %}
 
-      {% if version.description %}
-      <div class="version__description">{{ version.description | safe }}</div>
-      {% endif %}
+      {% include "_version_body.html" %}
+    </div>
 
-      {% if version.images %}
-      <div class="gallery" id="gallery-{{ version.id }}">
-        {% with images = version.images %}{% include "_gallery.html" %}{% endwith %}
+    <aside class="sidebar">
+      {% include "_install_panel.html" %}
+      <div class="panel">
+        <div class="panel__heading">Details</div>
+        <div class="stat-list">
+          <div class="stat-row"><span class="stat-row__label">By</span><span class="stat-row__value">{{ model.creator.username if model.creator else "unknown" }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Rating</span><span class="stat-row__value">{{ "%.1f"|format(model.stats.rating) if model.stats and model.stats.rating else "—" }}{% if model.stats and model.stats.ratingCount %} ({{ "{:,}".format(model.stats.ratingCount) }}){% endif %}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Downloads</span><span class="stat-row__value">{{ "{:,}".format(model.stats.downloadCount) if model.stats and model.stats.downloadCount else 0 }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Published</span><span class="stat-row__value">{{ model.publishedAt[:10] if model.publishedAt else "—" }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">License</span><span class="stat-row__value">{{ model.allowCommercialUse_display }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Derivatives</span><span class="stat-row__value">{{ "Allowed" if model.allowDerivatives else "Not allowed" }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">NSFW</span><span class="stat-row__value">{{ "Yes" if model.nsfw else "No" }}</span></div>
+        </div>
       </div>
-      {% endif %}
-
-      <div class="status-messages" id="status-messages-{{ version.id }}"></div>
-      <table class="files">
-        <tbody>
-        {% for file in version.files %}
-          <tr>
-            <td class="files__name">{{ file.name }}</td>
-            <td class="files__size">{{ "%.1f"|format(file.sizeKB / (1024*1024)) }} GB</td>
-            <td class="files__format">{{ file.metadata.fp if file.metadata else "" }} / {{ file.metadata.size if file.metadata else "" }}</td>
-            <td class="files__stamp">
-              <span class="stamp stamp--{{ 'ok' if file.virusScanResult == 'Success' and file.pickleScanResult == 'Success' else 'danger' }}">
-                SCAN: {{ "CLEAN" if file.virusScanResult == 'Success' and file.pickleScanResult == 'Success' else "FLAGGED" }}<br>
-                {{ (file.hashes.SHA256 or "")[:16] }}&hellip;
-              </span>
-            </td>
-            <td class="files__action">
-              <form hx-post="/install" hx-target="#status-messages-{{ version.id }}" hx-swap="innerHTML">
-                <input type="hidden" name="download_url" value="{{ file.downloadUrl }}">
-                <button type="submit" class="btn btn--accent">Install</button>
-              </form>
-              <form hx-post="/download" hx-target="#status-messages-{{ version.id }}" hx-swap="innerHTML">
-                <input type="hidden" name="download_url" value="{{ file.downloadUrl }}">
-                <input type="hidden" name="filename" value="{{ file.name }}">
-                <input type="hidden" name="sha256" value="{{ file.hashes.SHA256 or '' }}">
-                <button type="submit" class="btn">Download to folder</button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </details>
-    {% endfor %}
-  </section>
+    </aside>
+  </div>
 </div>
 
 <dialog id="lightbox" class="lightbox">
@@ -193,8 +147,8 @@
     }
 
     // Delegated on document (not bound per-button) because htmx swaps in new
-    // thumbnails after the page loads (lazy per-version gallery loading) —
-    // direct listeners wouldn't reach those.
+    // thumbnails when the version gallery loads — direct listeners wouldn't
+    // reach those.
     document.addEventListener('click', function (e) {
       var btn = e.target.closest('.thumb');
       if (!btn) return;

@@ -6,17 +6,22 @@
   <title>{% block title %}CivitAI Manager{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
+  <script src="/static/app.js" defer></script>
 </head>
 <body>
   <header class="topbar">
-    <div class="topbar__wordmark">CIVITAI MANAGER</div>
+    <span class="topbar__wordmark">Civitai Manager</span>
     <nav class="topbar__nav">
-      <a href="/browse" class="{{ 'is-active' if active_nav == 'browse' else '' }}">Browse</a>
-      <a href="/installed" class="{{ 'is-active' if active_nav == 'installed' else '' }}">Installed</a>
-      <a href="/logout">Log out</a>
+      <div class="tabset">
+        <a href="/browse" class="{{ 'is-active' if active_nav == 'browse' else '' }}">Browse</a>
+        <a href="/installed" class="{{ 'is-active' if active_nav == 'installed' else '' }}">Installed</a>
+      </div>
+      <a href="/logout" class="icon-btn" title="Log out" aria-label="Log out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+      </a>
     </nav>
   </header>
   <main class="page">

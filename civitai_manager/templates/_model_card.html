@@ -1,4 +1,4 @@
-<a class="card" href="/models/{{ model.id }}">
+<a class="card" href="/models/{{ model.id }}{% if return_to %}?return_to={{ return_to }}{% endif %}">
   {% set thumb = model.modelVersions[0].images[0].url if model.modelVersions and model.modelVersions[0].images else None %}
   <div class="card__thumb">
     {% if thumb %}
@@ -9,11 +9,13 @@
   </div>
   <div class="card__body">
     <div class="card__name">{{ model.name }}</div>
-    <div class="card__type">{{ model.type }}</div>
-    <div class="card__creator">by {{ model.creator.username if model.creator else "unknown" }}</div>
-    <div class="card__stats">
-      ★ {{ "%.1f"|format(model.stats.rating) if model.stats and model.stats.rating else "—" }}
-      &middot; ⬇ {{ "{:,}".format(model.stats.downloadCount) if model.stats and model.stats.downloadCount else "0" }}
+    <div class="card__row">
+      <span class="card__type">{{ model.type }}</span>
+      <span class="card__stats">
+        <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        {{ "{:,}".format(model.stats.downloadCount) if model.stats and model.stats.downloadCount else "0" }}
+      </span>
     </div>
+    <div class="card__creator">by {{ model.creator.username if model.creator else "unknown" }}</div>
   </div>
 </a>

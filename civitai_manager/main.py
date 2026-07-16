@@ -2,6 +2,7 @@ import logging
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote, unquote, urlencode
 
 import httpx
 from fastapi import FastAPI, Form, Request
@@ -175,6 +176,15 @@ async def browse(
     # query param's comma-separated stack.
     prev_stack = [c for c in prev.split(",") if c]
     prev_target = prev_stack[-1] if prev_stack else ""
+    # Carried through model card links so "Back to Browse" restores this exact
+    # search/filter/page state instead of resetting to a blank first page.
+    return_to = quote(
+        urlencode({
+            "q": q, "types": types, "base_model": base_model, "sort": sort,
+            "period": period, "nsfw": nsfw, "cursor": cursor, "prev": prev,
+        }),
+        safe="",
+    )
     context = {
         "request": request,
         "active_nav": "browse",
@@ -192,19 +202,42 @@ async def browse(
         "prev_cursor": "" if prev_target == "_root_" else prev_target,
         "prev_param": ",".join(prev_stack[:-1]),
         "next_prev_param": ",".join([*prev_stack, cursor or "_root_"]),
+        "return_to": return_to,
     }
     template = "browse_results.html" if is_htmx(request) else "browse.html"
     return templates.TemplateResponse(request, template, context)
 
 
 @app.get("/models/{model_id}", response_class=HTMLResponse)
-async def model_detail(request: Request, model_id: int, refresh: bool = False):
+async def model_detail(
+    request: Request,
+    model_id: int,
+    refresh: bool = False,
+    return_to: str = "",
+    version: int = 0,
+):
     model = await request.app.state.civitai.get_model(model_id, refresh=refresh)
     model = {**model, "allowCommercialUse_display": format_commercial_use(model.get("allowCommercialUse"))}
 
-    return templates.TemplateResponse(
-        request, "model_detail.html", {"model": model, "active_nav": "browse"}
-    )
+    back_url = f"/browse?{unquote(return_to)}" if return_to else "/browse"
+    versions = model.get("modelVersions", [])
+    active_version = next((v for v in versions if v["id"] == version), versions[0] if versions else None)
+
+    context = {
+        "request": request,
+        "model": model,
+        "active_nav": "browse",
+        "back_url": back_url,
+        "return_to": return_to,
+        "versions": versions,
+        "active_version": active_version,
+        "civitai_url": f"https://civitai.com/models/{model_id}",
+    }
+    # Version tab clicks hx-get this same route — the partial swaps the version
+    # body via hx-target/hx-select and relocates the sidebar install panel via
+    # an out-of-band swap, both driven from the one response.
+    template = "_version_update.html" if is_htmx(request) else "model_detail.html"
+    return templates.TemplateResponse(request, template, context)
 
 
 @app.get("/models/{model_id}/versions/{version_id}/gallery", response_class=HTMLResponse)

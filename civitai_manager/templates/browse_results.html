@@ -1,15 +1,37 @@
 <div id="results">
   <div class="results__toolbar">
-    <a class="pager__link" href="#"
+    <span class="refresh-link"
        hx-get="/browse?q={{ q }}&types={{ types }}&base_model={{ base_model }}&sort={{ sort }}&period={{ period }}&nsfw={{ nsfw }}&cursor={{ cursor }}&prev={{ prev_param }}&refresh=1"
-       hx-target="#results" hx-swap="outerHTML" hx-push-url="false">&#8635; Refresh</a>
+       hx-target="#results" hx-swap="outerHTML" hx-push-url="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+      refresh
+    </span>
+    {% if models %}
+    <span>{{ models|length }} results</span>
+    <span class="view-toggle" data-view-toggle data-key="civitai-browse-view" data-grid="browse-grid" data-table="browse-table">
+      <button type="button" data-view="grid" title="Card view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+      </button>
+      <button type="button" data-view="table" title="Table view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+      </button>
+    </span>
+    {% endif %}
   </div>
   {% if models %}
-  <div class="grid">
+  <div class="grid" id="browse-grid">
     {% for model in models %}
       {% include "_model_card.html" %}
     {% endfor %}
   </div>
+  <table class="results-table" id="browse-table" style="display:none;">
+    <thead><tr><th>Model</th><th>Type</th><th>Creator</th><th>Downloads</th></tr></thead>
+    <tbody>
+      {% for model in models %}
+        {% include "_model_row.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
   <div class="pager">
     {% if has_prev %}
       <a class="pager__link" href="#"

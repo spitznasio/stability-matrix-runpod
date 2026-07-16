@@ -1,0 +1,64 @@
+<div id="version-content">
+  <div class="version-tabs">
+    {% for v in versions %}
+    <a href="/models/{{ model.id }}?version={{ v.id }}{% if return_to %}&return_to={{ return_to }}{% endif %}"
+       class="version-tab{{ ' is-active' if active_version and v.id == active_version.id else '' }}"
+       hx-get="/models/{{ model.id }}?version={{ v.id }}{% if return_to %}&return_to={{ return_to }}{% endif %}"
+       hx-target="#version-content" hx-select="#version-content" hx-swap="outerHTML" hx-push-url="true">
+      {{ v.name }}{% if loop.first %} (latest){% endif %}
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if active_version %}
+  <div class="version-head">
+    <span class="version-head__name">{{ active_version.name }} — {{ active_version.baseModel }}</span>
+    <span class="version-head__stats">
+      <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      {{ "{:,}".format(active_version.stats.downloadCount) if active_version.stats and active_version.stats.downloadCount else 0 }}
+    </span>
+  </div>
+
+  {% if active_version.trainedWords %}
+  <p class="trigger-words">
+    {% for w in active_version.trainedWords %}<code>{{ w }}</code>{% endfor %}
+  </p>
+  {% endif %}
+
+  {% if active_version.description %}
+  <div class="version__description">{{ active_version.description | safe }}</div>
+  {% endif %}
+
+  {% if active_version.images %}
+  <div class="gallery" id="gallery-{{ active_version.id }}"
+       hx-get="/models/{{ model.id }}/versions/{{ active_version.id }}/gallery"
+       hx-trigger="load" hx-swap="innerHTML"></div>
+  {% endif %}
+
+  {% if active_version.files and active_version.files|length > 1 %}
+  <div class="other-files">
+    <div class="other-files__heading">Other files for this version</div>
+    {% for file in active_version.files[1:] %}
+    <div class="file-row">
+      <span class="file-row__name">
+        {{ file.name }}<br>
+        <span class="file-row__meta">{{ "%.1f"|format(file.sizeKB / (1024*1024)) }} GB{% if file.metadata %} &middot; {{ file.metadata.fp or "" }}{% endif %}</span>
+      </span>
+      <span class="file-row__actions">
+        <form hx-post="/install" hx-target="#status-messages-{{ active_version.id }}" hx-swap="innerHTML">
+          <input type="hidden" name="download_url" value="{{ file.downloadUrl }}">
+          <button type="submit" class="btn btn--small">Install</button>
+        </form>
+        <form hx-post="/download" hx-target="#status-messages-{{ active_version.id }}" hx-swap="innerHTML">
+          <input type="hidden" name="download_url" value="{{ file.downloadUrl }}">
+          <input type="hidden" name="filename" value="{{ file.name }}">
+          <input type="hidden" name="sha256" value="{{ file.hashes.SHA256 or '' }}">
+          <button type="submit" class="btn btn--small">Download</button>
+        </form>
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+</div>

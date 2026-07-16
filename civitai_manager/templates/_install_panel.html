@@ -1,0 +1,30 @@
+<div class="panel" id="install-panel"{{ ' hx-swap-oob="true"' if oob else "" }}>
+  {% if active_version %}
+  <div class="install-panel__version">{{ active_version.name }} &middot; {{ active_version.baseModel }}</div>
+  {% set f = active_version.files[0] if active_version.files else None %}
+  {% if f %}
+    <div class="install-panel__file">{{ f.name }}</div>
+    <div class="install-panel__meta">
+      {{ "%.1f"|format(f.sizeKB / (1024*1024)) }} GB
+      {% if f.metadata %}&middot; {{ f.metadata.fp or "" }} {{ ("/ " + f.metadata.size) if f.metadata.size else "" }}{% endif %}
+    </div>
+    {% set clean = f.virusScanResult == 'Success' and f.pickleScanResult == 'Success' %}
+    <span class="scan{{ '' if clean else ' is-flagged' }}">Scan {{ "clean" if clean else "flagged" }}</span>
+    <div class="status-messages" id="status-messages-{{ active_version.id }}"></div>
+    <div class="install-panel__actions">
+      <form hx-post="/install" hx-target="#status-messages-{{ active_version.id }}" hx-swap="innerHTML">
+        <input type="hidden" name="download_url" value="{{ f.downloadUrl }}">
+        <button type="submit" class="btn btn--accent">Install</button>
+      </form>
+      <form hx-post="/download" hx-target="#status-messages-{{ active_version.id }}" hx-swap="innerHTML">
+        <input type="hidden" name="download_url" value="{{ f.downloadUrl }}">
+        <input type="hidden" name="filename" value="{{ f.name }}">
+        <input type="hidden" name="sha256" value="{{ f.hashes.SHA256 or '' }}">
+        <button type="submit" class="btn">Download to folder</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="empty">No files published for this version.</p>
+  {% endif %}
+  {% endif %}
+</div>
