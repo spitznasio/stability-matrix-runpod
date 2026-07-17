@@ -1,7 +1,7 @@
 import itertools
 import logging
 import re
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 import httpx
 
@@ -84,3 +84,17 @@ class Aria2Client:
 
     async def remove(self, gid: str) -> None:
         await self._call("aria2.forceRemove", [gid])
+
+    async def cleanup_control_file(self, gid: str) -> None:
+        try:
+            job = await self.tell_status(gid)
+            files = job.get("files", [])
+            for file_info in files:
+                path = file_info.get("path")
+                if path:
+                    control_file = Path(path + ".aria2")
+                    if control_file.exists():
+                        control_file.unlink()
+                        logger.debug("Removed aria2 control file: %s", control_file)
+        except Exception as e:
+            logger.warning("Failed to cleanup aria2 control files for gid %s: %s", gid, e)

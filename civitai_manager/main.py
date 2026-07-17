@@ -346,6 +346,8 @@ async def download(
     download_dir = Path(config.CIVITAI_DOWNLOAD_DIR).resolve()
     if metadata and sidecar_target.parent == download_dir:
         downloads.write_sidecar(sidecar_target, metadata)
+    if job.get("status") in ARIA2_TERMINAL_STATUSES:
+        await request.app.state.aria2.cleanup_control_file(gid)
     logger.info("Download gid=%s queued for %s (status=%s)", gid, filename, job.get("status"))
     return templates.TemplateResponse(
         request,
@@ -363,6 +365,7 @@ async def download_status(request: Request, gid: str):
         return render_error(request, "Lost contact with the download daemon while checking status.")
     if job.get("status") in ARIA2_TERMINAL_STATUSES:
         logger.info("Download gid=%s reached terminal status %s", gid, job.get("status"))
+        await request.app.state.aria2.cleanup_control_file(gid)
     return templates.TemplateResponse(
         request,
         "_download_status.html",
