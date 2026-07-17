@@ -1,4 +1,6 @@
+import asyncio
 import secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -10,14 +12,28 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import config
-from .formatting import format_bytes, format_rate, format_uptime
+from .formatting import format_bytes, format_rate, format_uptime, sparkline_points
 from .logs import tail_log
 from .supervisor import SERVICES, service_manager
+from .telemetry import history
 from .telemetry.gpu import get_gpu_telemetry
 from .telemetry.network import get_network_telemetry
 from .telemetry.system import get_system_telemetry
 
 LOGIN_EXEMPT_PATHS = {"/login", "/health"}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    sample_task = asyncio.create_task(history.sample_loop())
+    try:
+        yield
+    finally:
+        sample_task.cancel()
+        try:
+            await sample_task
+        except asyncio.CancelledError:
+            pass
 
 
 class SessionAuthMiddleware(BaseHTTPMiddleware):
@@ -30,7 +46,7 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
         return RedirectResponse(url=f"/login?next={path}")
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(SessionAuthMiddleware)
 # Added last so it runs first (outermost), making request.session available
 # to SessionAuthMiddleware further down the stack.
@@ -42,6 +58,7 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["format_bytes"] = format_bytes
 templates.env.filters["format_rate"] = format_rate
 templates.env.filters["format_uptime"] = format_uptime
+templates.env.filters["sparkline_points"] = sparkline_points
 
 
 def is_htmx(request: Request) -> bool:
@@ -133,19 +150,32 @@ async def dashboard(request: Request):
 @app.get("/dashboard/telemetry", response_class=HTMLResponse)
 async def dashboard_telemetry(request: Request):
     system = await run_in_threadpool(get_system_telemetry)
-    return templates.TemplateResponse(request, "_dashboard_telemetry.html", {"system": system})
+    cpu_history = history.get_history("cpu_percent")
+    mem_history = history.get_history("mem_percent")
+    return templates.TemplateResponse(
+        request,
+        "_dashboard_telemetry.html",
+        {"system": system, "cpu_history": cpu_history, "mem_history": mem_history},
+    )
 
 
 @app.get("/dashboard/gpu", response_class=HTMLResponse)
 async def dashboard_gpu(request: Request):
     gpu = get_gpu_telemetry()
-    return templates.TemplateResponse(request, "_dashboard_gpu.html", {"gpu": gpu})
+    gpu_history = {g["index"]: history.get_gpu_history(g["index"]) for g in gpu["gpus"]}
+    return templates.TemplateResponse(request, "_dashboard_gpu.html", {"gpu": gpu, "gpu_history": gpu_history})
 
 
 @app.get("/dashboard/network", response_class=HTMLResponse)
 async def dashboard_network(request: Request):
     network = get_network_telemetry()
-    return templates.TemplateResponse(request, "_dashboard_network.html", {"network": network})
+    send_history = history.get_history("net_send_bps")
+    recv_history = history.get_history("net_recv_bps")
+    return templates.TemplateResponse(
+        request,
+        "_dashboard_network.html",
+        {"network": network, "send_history": send_history, "recv_history": recv_history},
+    )
 
 
 def _service_rows() -> list[dict]:

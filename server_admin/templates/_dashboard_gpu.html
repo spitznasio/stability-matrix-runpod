@@ -18,6 +18,8 @@
       {{ "%.0f"|format(g.temperature_c) }}&deg;C
       {% if g.power_draw_w is not none %} · {{ "%.0f"|format(g.power_draw_w) }} W{% endif %}
     </div>
+    {% set pts = gpu_history.get(g.index, [])|sparkline_points %}
+    {% if pts %}<svg class="sparkline" viewBox="0 0 120 32" preserveAspectRatio="none"><polyline points="{{ pts }}" /></svg>{% endif %}
   </div>
   {% endfor %}
 </div>
