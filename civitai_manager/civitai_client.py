@@ -98,31 +98,20 @@ class CivitAIClient:
 
         return await self._model_cache.get_or_fetch(model_id, fetch, refresh=refresh)
 
-    # Bitmask covering every CivitAI browsing level (None|Soft|Mature|X|Blocked
-    # = 1|2|4|8|16). The legacy `nsfw` param is an exclusive switch (omitted =
-    # safe only, `nsfw=true` = NSFW only, never both), so `browsingLevel` is
-    # used instead to match /browse's "NSFW included by default" behavior.
-    ALL_BROWSING_LEVELS = 31
-
-    async def get_version_images(
-        self, model_version_id: int, limit: int = 24, refresh: bool = False
-    ) -> list[dict]:
-        key = (model_version_id, limit)
+    async def get_version_images(self, model_version_id: int, refresh: bool = False) -> list[dict]:
+        # `/images?modelVersionId=` (the only endpoint that returns generation
+        # metadata via withMeta=true) pulls from CivitAI's community-wide gallery
+        # — every post anyone has ever tagged with this version, not just the
+        # publisher's own showcase. `/model-versions/{id}` returns exactly the
+        # publisher's curated showcase images, WITH generation metadata included
+        # (confirmed empirically — the metadata restriction on /models and
+        # /model-versions only applies to the plural /models list endpoint).
+        key = model_version_id
 
         async def fetch() -> list[dict]:
-            # The model/model-version endpoints never include generation metadata.
-            # /images with withMeta=true is the only endpoint that returns it.
             logger.debug("CivitAI get_version_images cache miss, fetching model_version_id=%s", model_version_id)
-            response = await self._client.get(
-                "/images",
-                params={
-                    "modelVersionId": model_version_id,
-                    "limit": limit,
-                    "withMeta": "true",
-                    "browsingLevel": self.ALL_BROWSING_LEVELS,
-                },
-            )
+            response = await self._client.get(f"/model-versions/{model_version_id}")
             response.raise_for_status()
-            return response.json().get("items", [])
+            return response.json().get("images", [])
 
         return await self._images_cache.get_or_fetch(key, fetch, refresh=refresh)

@@ -20,6 +20,14 @@
         <input type="hidden" name="download_url" value="{{ f.downloadUrl }}">
         <input type="hidden" name="filename" value="{{ f.name }}">
         <input type="hidden" name="sha256" value="{{ f.hashes.SHA256 or '' }}">
+        <input type="hidden" name="model_id" value="{{ model.id }}">
+        <input type="hidden" name="model_name" value="{{ model.name }}">
+        <input type="hidden" name="model_type" value="{{ model.type }}">
+        <input type="hidden" name="version_id" value="{{ active_version.id }}">
+        <input type="hidden" name="base_model" value="{{ active_version.baseModel }}">
+        <input type="hidden" name="civitai_url" value="{{ civitai_url }}">
+        <input type="hidden" name="description" value="{{ model.description or '' }}">
+        <input type="hidden" name="trigger_words" value="{{ (active_version.trainedWords or []) | join(',') }}">
         <button type="submit" class="btn">Download to folder</button>
       </form>
     </div>

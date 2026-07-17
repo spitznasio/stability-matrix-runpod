@@ -51,7 +51,7 @@ If you're deploying from the RunPod template, this is already set — just make 
 | `ONEDRIVE_SYNC_LOCAL_BASE_ROOT` | Optional | Defaults to `/workspace`. Limits local sync path selection to this root. |
 | `ONEDRIVE_SYNC_JOB_HISTORY_MAX_JOBS` | Optional | Defaults to `250`. Oldest sync jobs are pruned automatically. |
 | `ONEDRIVE_SYNC_JOB_MAX_EVENTS` | Optional | Defaults to `200`. Oldest events per job are pruned automatically. |
-| `PYTORCH_CUDA_ALLOC_CONF` | Optional | Defaults to `backend:cudaMallocAsync`. If you hit out-of-memory errors during generation, try `max_split_size_mb:512,expandable_segments:True` instead. |
+| `PYTORCH_CUDA_ALLOC_CONF` | Optional | Defaults to `backend:cudaMallocAsync`. If you hit out-of-memory errors during generation, try `max_split_size_mb:512,expandable_segments:True` or `garbage_collection_threshold:0.8` instead. |
 
 ## 4. Start the pod
 
@@ -71,6 +71,8 @@ See the [InvokeAI docs](https://invoke-ai.github.io/InvokeAI/) for advanced feat
 
 ### CivitAI Manager (port 8000) — install models
 
+**Quick install (single-connection):**
+
 1. Open the **8000** proxy link.
 2. Search for a model (e.g. "Pony Diffusion").
 3. Click a model to see its versions, then click **Install** on the version you want.
@@ -78,7 +80,11 @@ See the [InvokeAI docs](https://invoke-ai.github.io/InvokeAI/) for advanced feat
 
 Installs use your `CIVITAI_API_TOKEN` automatically, so downloads are faster and gated content works.
 
-For large checkpoints, use **Download to folder** instead of **Install** — it queues the file with `aria2c` (16-way segmented, resumable, checksum-verified) into `CIVITAI_DOWNLOAD_DIR` (default `/workspace/civitai-downloads`) rather than InvokeAI's single-connection installer. Import the downloaded file into InvokeAI afterward via its own "Scan Folder" feature.
+**Download to folder (multi-connection, resumable):**
+
+For large checkpoints, use **Download to folder** instead of **Install** — it queues the file with `aria2c` (16-way segmented, resumable, checksum-verified) into `CIVITAI_DOWNLOAD_DIR` (default `/workspace/civitai-downloads`).
+
+Then use the **Downloads** tab to see all downloaded files, check which are installed in InvokeAI, and click **Install** to register a file — this imports the description and trigger words automatically, no manual annotation needed.
 
 ### Server Admin (port 8001) — telemetry and service control
 
@@ -174,7 +180,10 @@ Make sure you picked the image tag matching your GPU (`:main` for 5090, `:main-4
 Models live on the volume disk at `/workspace/invokeai/models` and should persist. If they vanish, check that your volume actually reattached — see "Stopping & restarting" above.
 
 **Out-of-memory errors during generation**
-Set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512,expandable_segments:True` as a pod env var and restart.
+Set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512,expandable_segments:True` (or `garbage_collection_threshold:0.8`) as a pod env var and restart. For persistent fragmentation, see the GPU memory tuning steps in [IMPORTANT.md](IMPORTANT.md).
+
+**System RAM (not VRAM) keeps climbing over time**
+The image already sets `MALLOC_MMAP_THRESHOLD_=1048576` by default to mitigate a known Linux glibc allocator issue. If RAM still climbs, a pod restart reclaims it — see [IMPORTANT.md](IMPORTANT.md) for background.
 
 ---
 
@@ -183,3 +192,4 @@ Set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512,expandable_segments:True` as 
 - [InvokeAI Documentation](https://invoke-ai.github.io/InvokeAI/)
 - [CivitAI](https://civitai.com)
 - [RunPod](https://www.runpod.io)
+- [IMPORTANT.md](IMPORTANT.md) — Blackwell/5090-specific gotchas and deeper memory-tuning notes

@@ -5,7 +5,7 @@ Run **InvokeAI** (Stable Diffusion), **code-server** (VS Code), and a **CivitAI 
 **Features:**
 
 - 🎨 Full InvokeAI web UI for text-to-image, image editing, and more
-- 🤖 CivitAI Manager — browse and install models directly into InvokeAI
+- 🤖 CivitAI Manager — browse and install models directly into InvokeAI, or download to folder with one-click install from a dedicated Downloads page
 - ☁️ OneDrive Sync Manager — manual one-way sync from pod-local folders to OneDrive
 - 💻 code-server — VS Code in your browser for terminal access and scripting
 - 📦 Pre-installed tools: AWS CLI, HuggingFace CLI, aria2 for fast downloads
@@ -40,6 +40,9 @@ CIVITAI_API_TOKEN=your_token_here
 
 - `CIVITAI_MANAGER_USERNAME` and `CIVITAI_MANAGER_PASSWORD` — if both are set, the CivitAI Manager UI requires login
 - `CIVITAI_MANAGER_SESSION_SECRET` — signs the session cookie; if unset, sessions reset on restart
+- `CIVITAI_DOWNLOAD_DIR` — destination folder for CivitAI Manager's "Download to folder" (aria2) path; defaults to `/workspace/civitai-downloads`
+- `SERVER_ADMIN_USERNAME` and `SERVER_ADMIN_PASSWORD` — **strongly recommended**: if both are set, the Server Admin dashboard requires login. This app can stop/start every other service, so leaving it open is higher-risk than leaving CivitAI Manager open.
+- `SERVER_ADMIN_SESSION_SECRET` — signs the Server Admin session cookie; if unset, sessions reset on restart
 - `ONEDRIVE_MANAGER_USERNAME` — local auth username for OneDrive Sync Manager
 - `ONEDRIVE_MANAGER_PASSWORD_HASH` — bcrypt hash for local auth password
 - `ONEDRIVE_MANAGER_SESSION_SECRET` — session-signing secret for OneDrive Sync Manager
@@ -49,6 +52,7 @@ CIVITAI_API_TOKEN=your_token_here
 - `ONEDRIVE_SYNC_LOCAL_BASE_ROOT` — optional, defaults to `/workspace`
 - `ONEDRIVE_SYNC_JOB_HISTORY_MAX_JOBS` — optional, defaults to `250` (oldest jobs are pruned)
 - `ONEDRIVE_SYNC_JOB_MAX_EVENTS` — optional, defaults to `200` (oldest events per job are pruned)
+- `ONEDRIVE_MANAGER_LOG_LEVEL` — optional, defaults to `INFO`; set to `DEBUG` for per-request detail (visible via Server Admin's log viewer, service key `onedrive-sync`)
 
 ### 3. Start the pod
 
@@ -71,13 +75,25 @@ Done! All services are now running.
 
 ### CivitAI Manager — Install Models
 
-The CivitAI Manager lets you search and install models without leaving RunPod.
+The CivitAI Manager lets you search and install models without leaving RunPod. Choose **Install** for direct installation, or **Download to folder** for large checkpoints.
+
+#### Fast install (single-connection)
 
 1. Click the **8000** proxy link (or `https://<pod-id>-8000.proxy.runpod.net`)
 2. **Search** for a model (e.g., "Pony Diffusion")
 3. Click the model to see versions and details
 4. Click **Install** on a version — it downloads and registers with InvokeAI
 5. Refresh InvokeAI and the model appears in the model selector
+
+#### Download to folder (multi-connection, resumable)
+
+For large checkpoints, use **Download to folder** instead — it queues the file with `aria2` (16-way segmented, resumable, checksum-verified) into `CIVITAI_DOWNLOAD_DIR` (default `/workspace/civitai-downloads`).
+
+Then use the **Downloads** tab in the CivitAI Manager to:
+
+- See all downloaded files and their metadata
+- Check which files are already installed in InvokeAI
+- Click **Install** to register a downloaded file with InvokeAI — this brings in the description and trigger words automatically (no manual annotation needed)
 
 **Tip:** The CivitAI Manager respects your API token for faster downloads.
 
@@ -87,7 +103,7 @@ A centralized dashboard for managing all services running on the pod.
 
 1. Click the **8001** proxy link (or `https://<pod-id>-8001.proxy.runpod.net`)
 2. View real-time GPU, network, and system telemetry
-3. Start, stop, or restart services (InvokeAI, code-server, CivitAI Manager, OneDrive Sync Manager)
+3. Start, stop, or restart services (InvokeAI, code-server, CivitAI Manager, the aria2 RPC daemon, OneDrive Sync Manager)
 4. View live logs for each service for debugging
 
 **Note:** Set `SERVER_ADMIN_USERNAME` and `SERVER_ADMIN_PASSWORD` environment variables to enable login (recommended, since this app can control services).
@@ -182,7 +198,7 @@ Click **Stop Pod** in RunPod. Models, images, and all configuration persist on t
 
 ### Restart the pod
 
-Click **Start Pod**. The same volume disk reattaches, and all three services boot again with your models intact.
+Click **Start Pod**. The same volume disk reattaches, and all services boot again with your models intact.
 
 **⚠️ Important:** The volume disk is tied to a specific physical host. If you stop the pod and the 5090/4090 is fully rented out in that datacenter, you may not be able to restart on the same volume.
 
@@ -200,8 +216,10 @@ The image sets these environment variables by default:
 
 | Var | Value | When to override |
 | --- | --- | --- |
-| `PYTORCH_CUDA_ALLOC_CONF` | `backend:cudaMallocAsync` | If you hit OOM errors, try `max_split_size_mb:512,expandable_segments:True` |
-| `CUDA_CACHE_MAXSIZE` | `4294967296` (4GB) | Rarely needed |
+| `PYTORCH_CUDA_ALLOC_CONF` | `backend:cudaMallocAsync` | If you hit OOM errors, try `max_split_size_mb:512,expandable_segments:True` or `garbage_collection_threshold:0.8` |
+| `MALLOC_MMAP_THRESHOLD_` | `1048576` | Mitigates a Linux glibc allocator issue where system RAM (not VRAM) climbs gradually across generations. Rarely needs overriding. |
+| `CUDA_MODULE_LOADING` | `LAZY` | Rarely needed |
+| `SD_USE_FP4` | `1` (5090 image only) | Rarely needed |
 | `HF_HUB_ENABLE_HF_TRANSFER` | `1` | Already optimized for fast HF downloads |
 
 To override, set them as RunPod env vars before starting the pod.
@@ -245,11 +263,14 @@ Two Dockerfiles for different GPUs:
 
 ### Build & deploy
 
-Push to `main` → GitHub Actions builds both variants and pushes to GHCR:
+Push to `main` → GitHub Actions builds and pushes the RTX 5090 image (`:main`) to GHCR. The RTX 4090 image (`:main-4090`) is manual-only, since the 5090 image covers the vast majority of usage:
 
 ```bash
-# Trigger a build
+# Trigger a 5090 build
 git push origin main
+
+# Trigger a 4090 build (also rebuilds 5090)
+gh workflow run build.yml
 
 # Check build status
 gh run list --workflow=build.yml
@@ -266,7 +287,7 @@ After a build completes, update your RunPod template:
 
 - **Path:** `/workspace` is a RunPod-managed persistent volume disk
 - **Data:** Models (`/workspace/invokeai/models`), outputs (`/workspace/invokeai/outputs`), config (`/workspace/invokeai/invokeai.yaml`) all live here
-- **App code:** `civitai_manager` is installed at `/opt` (outside the volume mount) so it's not hidden when the volume attaches
+- **App code:** `civitai_manager`, `server_admin`, and `onedrive_sync_manager` are all installed at `/opt` (outside the volume mount) so they're not hidden when the volume attaches
 
 ---
 
@@ -275,4 +296,5 @@ After a build completes, update your RunPod template:
 - [InvokeAI Documentation](https://invoke-ai.github.io/InvokeAI/)
 - [CivitAI](https://civitai.com)
 - [RunPod](https://www.runpod.io)
-- [Project README](CLAUDE.md) — technical architecture & file guide
+- [CLAUDE.md](CLAUDE.md) — technical architecture & file guide
+- [IMPORTANT.md](IMPORTANT.md) — Blackwell/5090-specific gotchas and memory-tuning notes

@@ -12,12 +12,13 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import config
+from . import config, downloads
 from .aria2_client import Aria2Client
 from .aria2_client import TERMINAL_STATUSES as ARIA2_TERMINAL_STATUSES
 from .civitai_client import CivitAIClient
 from .formatting import format_commercial_use
 from .invokeai_client import InvokeAIClient
+from .sanitize import html_to_text
 
 # basicConfig here (not in a __main__ guard) because uvicorn imports this
 # module directly rather than running it as a script — this is the only
@@ -292,7 +293,18 @@ async def install_status(request: Request, job_id: str):
 
 @app.post("/download", response_class=HTMLResponse)
 async def download(
-    request: Request, download_url: str = Form(...), filename: str = Form(...), sha256: str = Form("")
+    request: Request,
+    download_url: str = Form(...),
+    filename: str = Form(...),
+    sha256: str = Form(""),
+    model_id: str = Form(""),
+    model_name: str = Form(""),
+    model_type: str = Form(""),
+    version_id: str = Form(""),
+    base_model: str = Form(""),
+    civitai_url: str = Form(""),
+    description: str = Form(""),
+    trigger_words: str = Form(""),
 ):
     logger.info("Download-to-folder requested: %s -> %s", download_url, filename)
     try:
@@ -304,6 +316,36 @@ async def download(
             request,
             "The download daemon is not reachable right now — try again shortly.",
         )
+    # aria2 sanitizes `filename` down to a bare basename before writing the
+    # file (see aria2_client._sanitize_filename) — the sidecar must be keyed
+    # off the actual on-disk name reported in the job, or it won't be found
+    # by list_downloaded_files() later. Fall back to a `.name`-only version of
+    # the client-supplied `filename` (never the raw form value) so a missing
+    # `files` entry in the aria2 response can't be used to write a sidecar
+    # outside CIVITAI_DOWNLOAD_DIR via a "../"-laden filename.
+    actual_names = [Path(f["path"]).name for f in job.get("files", [])]
+    actual_name = actual_names[0] if actual_names else Path(filename).name
+    # civitai_url is echoed back from a hidden form field, which any client
+    # can freely edit before submitting — validate the scheme before it's
+    # persisted and later rendered as an <a href> on the Downloads page.
+    if civitai_url and not civitai_url.startswith(("http://", "https://")):
+        civitai_url = ""
+    metadata = {
+        "model_id": model_id or None,
+        "model_name": model_name or None,
+        "model_type": model_type or None,
+        "version_id": version_id or None,
+        "base_model": base_model or None,
+        "civitai_url": civitai_url or None,
+        "description": description or None,
+        "trigger_words": [w for w in (w.strip() for w in trigger_words.split(",")) if w],
+        "sha256": sha256 or None,
+    }
+    metadata = {k: v for k, v in metadata.items() if v}
+    sidecar_target = (Path(config.CIVITAI_DOWNLOAD_DIR) / actual_name).resolve()
+    download_dir = Path(config.CIVITAI_DOWNLOAD_DIR).resolve()
+    if metadata and sidecar_target.parent == download_dir:
+        downloads.write_sidecar(sidecar_target, metadata)
     logger.info("Download gid=%s queued for %s (status=%s)", gid, filename, job.get("status"))
     return templates.TemplateResponse(
         request,
@@ -325,6 +367,62 @@ async def download_status(request: Request, gid: str):
         request,
         "_download_status.html",
         {"job": job, "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES},
+    )
+
+
+@app.get("/downloads", response_class=HTMLResponse)
+async def downloads_list(request: Request):
+    files = downloads.list_downloaded_files(Path(config.CIVITAI_DOWNLOAD_DIR))
+    try:
+        installed_models = await request.app.state.invokeai.list_models()
+        installed_paths = {
+            str(Path(m["path"]).resolve()) for m in installed_models if m.get("path")
+        }
+        invokeai_error = None
+    except httpx.HTTPError:
+        installed_paths = set()
+        invokeai_error = "InvokeAI is not reachable right now — install status is unknown."
+    for f in files:
+        f["installed"] = str(f["path"].resolve()) in installed_paths
+    return templates.TemplateResponse(
+        request,
+        "downloads.html",
+        {"files": files, "error": invokeai_error, "active_nav": "downloads"},
+    )
+
+
+@app.post("/downloads/{filename}/install", response_class=HTMLResponse)
+async def downloads_install(request: Request, filename: str):
+    download_dir = Path(config.CIVITAI_DOWNLOAD_DIR).resolve()
+    target = (download_dir / filename).resolve()
+    if download_dir not in target.parents or not target.is_file():
+        return render_error(request, "That file could not be found.", status_code=404)
+
+    metadata = downloads.read_sidecar(target) or {}
+    install_config = {
+        "name": metadata.get("model_name"),
+        "description": html_to_text(metadata.get("description")),
+        "trigger_phrases": metadata.get("trigger_words") or None,
+        "source_url": metadata.get("civitai_url"),
+    }
+    install_config = {k: v for k, v in install_config.items() if v}
+
+    logger.info("Install-from-download requested: %s", target)
+    try:
+        job = await request.app.state.invokeai.install_model(
+            str(target), config.CIVITAI_API_TOKEN, inplace=True, config=install_config
+        )
+    except httpx.HTTPError:
+        logger.warning("Install request rejected by InvokeAI for %s", target, exc_info=True)
+        return render_error(
+            request,
+            "InvokeAI is not ready yet, or the install request was rejected — try again shortly.",
+        )
+    logger.info("Install job %s started for %s (status=%s)", job.get("id"), target, job.get("status"))
+    return templates.TemplateResponse(
+        request,
+        "_install_status.html",
+        {"job": job, "terminal": job.get("status") in TERMINAL_STATUSES},
     )
 
 

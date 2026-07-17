@@ -14,13 +14,20 @@ class InvokeAIClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def install_model(self, download_url: str, access_token: str | None) -> dict:
-        params: dict[str, str] = {"source": download_url}
+    async def install_model(
+        self,
+        source: str,
+        access_token: str | None = None,
+        *,
+        inplace: bool = False,
+        config: dict | None = None,
+    ) -> dict:
+        params: dict[str, str] = {"source": source, "inplace": "true" if inplace else "false"}
         if access_token:
             params["access_token"] = access_token
 
-        logger.debug("POST /api/v2/models/install source=%s", download_url)
-        response = await self._client.post("/api/v2/models/install", params=params, json={})
+        logger.debug("POST /api/v2/models/install source=%s inplace=%s", source, inplace)
+        response = await self._client.post("/api/v2/models/install", params=params, json=config or {})
         response.raise_for_status()
         return response.json()
 

@@ -32,3 +32,12 @@ def sanitize_html(html: str | None) -> str | None:
         protocols=ALLOWED_PROTOCOLS,
         strip=True,
     )
+
+
+def html_to_text(html: str | None) -> str | None:
+    # InvokeAI's model description field is plain text, not HTML — strip all
+    # markup rather than allow-listing it like sanitize_html does for our own
+    # rendered pages.
+    if not html:
+        return html
+    return bleach.clean(html, tags=[], attributes={}, strip=True).strip()
