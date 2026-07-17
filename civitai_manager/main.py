@@ -330,6 +330,7 @@ async def download(
     # persisted and later rendered as an <a href> on the Downloads page.
     if civitai_url and not civitai_url.startswith(("http://", "https://")):
         civitai_url = ""
+    trigger_words_list = [w for w in (w.strip() for w in trigger_words.split(",")) if w]
     metadata = {
         "model_id": model_id or None,
         "model_name": model_name or None,
@@ -338,14 +339,16 @@ async def download(
         "base_model": base_model or None,
         "civitai_url": civitai_url or None,
         "description": description or None,
-        "trigger_words": [w for w in (w.strip() for w in trigger_words.split(",")) if w],
+        "trigger_words": trigger_words_list,
         "sha256": sha256 or None,
     }
-    metadata = {k: v for k, v in metadata.items() if v}
+    metadata = {k: v for k, v in metadata.items() if v is not None}
     sidecar_target = (Path(config.CIVITAI_DOWNLOAD_DIR) / actual_name).resolve()
     download_dir = Path(config.CIVITAI_DOWNLOAD_DIR).resolve()
+    logger.debug("Download /download: received trigger_words=%r, parsed to=%s, final metadata=%s", trigger_words, trigger_words_list, metadata)
     if metadata and sidecar_target.parent == download_dir:
         downloads.write_sidecar(sidecar_target, metadata)
+        logger.debug("Sidecar written to %s with keys: %s", sidecar_target, list(metadata.keys()))
     if job.get("status") in ARIA2_TERMINAL_STATUSES:
         await request.app.state.aria2.cleanup_control_file(gid)
     logger.info("Download gid=%s queued for %s (status=%s)", gid, filename, job.get("status"))
@@ -402,13 +405,15 @@ async def downloads_install(request: Request, filename: str):
         return render_error(request, "That file could not be found.", status_code=404)
 
     metadata = downloads.read_sidecar(target) or {}
+    logger.debug("Install /downloads/{filename}/install: read sidecar metadata=%s", metadata)
     install_config = {
         "name": metadata.get("model_name"),
         "description": html_to_text(metadata.get("description")),
-        "trigger_phrases": metadata.get("trigger_words") or None,
+        "trigger_phrases": metadata.get("trigger_words"),
         "source_url": metadata.get("civitai_url"),
     }
-    install_config = {k: v for k, v in install_config.items() if v}
+    install_config = {k: v for k, v in install_config.items() if v is not None}
+    logger.debug("Install built config (after filtering)=%s", install_config)
 
     logger.info("Install-from-download requested: %s", target)
     try:

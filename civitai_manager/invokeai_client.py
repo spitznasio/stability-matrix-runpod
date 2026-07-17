@@ -26,8 +26,9 @@ class InvokeAIClient:
         if access_token:
             params["access_token"] = access_token
 
-        logger.debug("POST /api/v2/models/install source=%s inplace=%s", source, inplace)
-        response = await self._client.post("/api/v2/models/install", params=params, json=config or {})
+        json_body = config or {}
+        logger.debug("POST /api/v2/models/install source=%s inplace=%s config=%s", source, inplace, json_body)
+        response = await self._client.post("/api/v2/models/install", params=params, json=json_body)
         response.raise_for_status()
         return response.json()
 
