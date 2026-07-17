@@ -34,6 +34,7 @@
   <div class="detail-grid">
     <div class="main-pane">
       {% if model.description %}
+      {# sanitized in CivitAIClient.get_model (bleach allowlist) before this ever reaches the template #}
       <div class="desc is-collapsed" id="model-desc">{{ model.description | safe }}</div>
       <button type="button" class="desc-toggle" onclick="var el=document.getElementById('model-desc'); var collapsed=el.classList.toggle('is-collapsed'); this.textContent = collapsed ? 'Show more' : 'Show less';">Show more</button>
       {% endif %}

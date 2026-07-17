@@ -4,6 +4,7 @@ import httpx
 
 from . import config
 from .cache import AsyncTTLCache
+from .sanitize import sanitize_html
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,15 @@ class CivitAIClient:
             logger.debug("CivitAI get_model cache miss, fetching model_id=%s", model_id)
             response = await self._client.get(f"/models/{model_id}")
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            # model/version descriptions are creator-authored HTML rendered
+            # with `| safe` in the templates — sanitized once here so the
+            # cached result (and every template that touches it) is safe by
+            # construction, rather than relying on callers to remember.
+            data["description"] = sanitize_html(data.get("description"))
+            for version in data.get("modelVersions", []):
+                version["description"] = sanitize_html(version.get("description"))
+            return data
 
         return await self._model_cache.get_or_fetch(model_id, fetch, refresh=refresh)
 

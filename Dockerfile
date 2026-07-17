@@ -40,7 +40,8 @@ RUN pip install --no-cache-dir \
     itsdangerous \
     psutil \
     "passlib[bcrypt]" \
-    cachetools
+    cachetools \
+    bleach
 
 # boto3 for the /workspace S3 helper scripts (upload/download_*_s3.py). The AWS
 # CLI v2 install above bundles its own Python and doesn't expose boto3 here.

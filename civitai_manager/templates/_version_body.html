@@ -26,6 +26,7 @@
   {% endif %}
 
   {% if active_version.description %}
+  {# sanitized in CivitAIClient.get_model (bleach allowlist) before this ever reaches the template #}
   <div class="version__description">{{ active_version.description | safe }}</div>
   {% endif %}
 
