@@ -14,6 +14,8 @@
     <div class="install-panel__actions">
       <form hx-post="/install" hx-target="#status-messages-{{ active_version.id }}" hx-swap="innerHTML">
         <input type="hidden" name="download_url" value="{{ f.downloadUrl }}">
+        <input type="hidden" name="model_id" value="{{ model.id }}">
+        <input type="hidden" name="version_id" value="{{ active_version.id }}">
         <button type="submit" class="btn btn--accent">Install</button>
       </form>
       <form hx-post="/download" hx-target="#status-messages-{{ active_version.id }}" hx-swap="innerHTML">

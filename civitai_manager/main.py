@@ -1,6 +1,8 @@
+import asyncio
 import logging
 import secrets
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, unquote, urlencode
 
@@ -12,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import config, downloads
+from . import config, downloads, metadata_store
 from .aria2_client import Aria2Client
 from .aria2_client import TERMINAL_STATUSES as ARIA2_TERMINAL_STATUSES
 from .civitai_client import CivitAIClient
@@ -45,6 +47,106 @@ BASE_MODEL_CHOICES = [
     "SD 3.5",
     "Other",
 ]
+
+INSTALL_METADATA_POLL_SECONDS = 2.0
+
+
+def _build_sidecar_metadata(model: dict, version_id: int) -> dict:
+    version = next((v for v in model.get("modelVersions", []) if v.get("id") == version_id), None)
+    creator = model.get("creator") or {}
+    return {
+        "civitai_model_id": model.get("id"),
+        "civitai_version_id": version_id,
+        "civitai_url": f"https://civitai.com/models/{model.get('id')}",
+        "model_name": model.get("name"),
+        "type": model.get("type"),
+        "base_model": version.get("baseModel") if version else None,
+        "creator_username": creator.get("username"),
+        "description": model.get("description"),
+        "trigger_words": (version.get("trainedWords") if version else None) or [],
+        "tags": [t.get("name") if isinstance(t, dict) else t for t in (model.get("tags") or [])],
+        "stats": model.get("stats"),
+        "allowCommercialUse": model.get("allowCommercialUse"),
+        "allowDerivatives": model.get("allowDerivatives"),
+        "nsfw": model.get("nsfw"),
+        "publishedAt": model.get("publishedAt"),
+        "versions": [
+            {
+                "id": v.get("id"),
+                "name": v.get("name"),
+                "images": (v.get("images") or [])[:1],
+            }
+            for v in model.get("modelVersions", [])
+        ],
+        "installed_version_id": version_id,
+        "installed_version_name": version.get("name") if version else None,
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _extract_installed_path(job: dict) -> str | None:
+    # The exact field InvokeAI uses for the installed model's on-disk path in a
+    # completed ModelInstallJob payload has not been confirmed against a live
+    # server as of writing — try the plausible locations. If none match on a
+    # real pod, curl the job status endpoint directly (see CLAUDE.md's
+    # troubleshooting note on /install) and add the real key here.
+    config_out = job.get("config") if isinstance(job.get("config"), dict) else None
+    if config_out and config_out.get("path"):
+        return config_out["path"]
+    config_out2 = job.get("config_out") if isinstance(job.get("config_out"), dict) else None
+    if config_out2 and config_out2.get("path"):
+        return config_out2["path"]
+    if job.get("path"):
+        return job["path"]
+    return None
+
+
+async def _track_install_metadata(app: FastAPI, job_id: str, model_id: int, version_id: int) -> None:
+    # Runs independently of any client connection so metadata capture doesn't
+    # depend on a browser tab staying open/visible for the entire install —
+    # see docs/superpowers/specs/2026-07-19-installed-page-mirror-design.md,
+    # "Server-side install-completion tracking".
+    invokeai: InvokeAIClient = app.state.invokeai
+    civitai: CivitAIClient = app.state.civitai
+    while True:
+        await asyncio.sleep(INSTALL_METADATA_POLL_SECONDS)
+        try:
+            job = await invokeai.get_install_job(job_id)
+        except httpx.HTTPError:
+            logger.warning(
+                "Lost contact with InvokeAI tracking install job %s for metadata capture",
+                job_id, exc_info=True,
+            )
+            return
+        if job.get("status") not in TERMINAL_STATUSES:
+            continue
+        if job.get("status") != "completed":
+            logger.info(
+                "Install job %s did not complete successfully (status=%s); skipping metadata capture",
+                job_id, job.get("status"),
+            )
+            return
+        installed_path = _extract_installed_path(job)
+        if not installed_path:
+            logger.warning(
+                "Install job %s completed but no installed path found in job payload; "
+                "skipping metadata capture. job=%s", job_id, job,
+            )
+            return
+        try:
+            model = await civitai.get_model(model_id)
+        except httpx.HTTPError:
+            logger.warning(
+                "Failed to fetch CivitAI model %s for metadata capture after install",
+                model_id, exc_info=True,
+            )
+            return
+        metadata_store.write_sidecar(installed_path, _build_sidecar_metadata(model, version_id))
+        logger.info(
+            "Captured install metadata for model_id=%s version_id=%s at %s",
+            model_id, version_id, installed_path,
+        )
+        return
 
 
 @asynccontextmanager
@@ -255,7 +357,12 @@ async def version_gallery(request: Request, model_id: int, version_id: int, refr
 
 
 @app.post("/install", response_class=HTMLResponse)
-async def install(request: Request, download_url: str = Form(...)):
+async def install(
+    request: Request,
+    download_url: str = Form(...),
+    model_id: str = Form(""),
+    version_id: str = Form(""),
+):
     logger.info("Install requested: %s", download_url)
     try:
         job = await request.app.state.invokeai.install_model(
@@ -268,6 +375,10 @@ async def install(request: Request, download_url: str = Form(...)):
             "InvokeAI is not ready yet, or the install request was rejected — try again shortly.",
         )
     logger.info("Install job %s started for %s (status=%s)", job.get("id"), download_url, job.get("status"))
+    if job.get("id") and model_id and version_id:
+        asyncio.create_task(
+            _track_install_metadata(request.app, job["id"], int(model_id), int(version_id))
+        )
     return templates.TemplateResponse(
         request,
         "_install_status.html",
