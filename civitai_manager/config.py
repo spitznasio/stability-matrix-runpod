@@ -31,3 +31,8 @@ CIVITAI_CACHE_MAXSIZE = int(os.environ.get("CIVITAI_CACHE_MAXSIZE", "500"))
 CIVITAI_DOWNLOAD_DIR = os.environ.get("CIVITAI_DOWNLOAD_DIR", "/workspace/civitai-downloads")
 ARIA2_RPC_URL = os.environ.get("ARIA2_RPC_URL", "http://127.0.0.1:6800/jsonrpc")
 ARIA2_RPC_SECRET = os.environ.get("ARIA2_RPC_SECRET", "")
+
+# Sidecar metadata captured for models installed via the app's "Install"
+# button — see metadata_store.py. Lives on the volume disk (like
+# CIVITAI_DOWNLOAD_DIR) so it survives pod restarts.
+CIVITAI_METADATA_DIR = os.environ.get("CIVITAI_METADATA_DIR", "/workspace/civitai-metadata")
