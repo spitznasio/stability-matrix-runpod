@@ -93,9 +93,10 @@ def _build_sidecar_metadata(model: dict, version_id: int) -> dict:
 
 def _extract_installed_path(job: dict) -> str | None:
     # Confirmed against a live pod: a completed ModelInstallJob's config_out.path
-    # holds the installed model's on-disk path for local-source installs (a
-    # top-level "local_path" field carries the same value). The other
-    # fallbacks below are kept for payload shapes not yet observed directly.
+    # holds the installed model's on-disk path for local-source (inplace) installs.
+    # Only this field has been observed directly — the other fallbacks below are
+    # speculative, kept for payload shapes (e.g. URL-sourced installs) not yet
+    # confirmed against a live server.
     config_out = job.get("config") if isinstance(job.get("config"), dict) else None
     if config_out and config_out.get("path"):
         return config_out["path"]
