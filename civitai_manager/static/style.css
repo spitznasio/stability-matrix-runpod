@@ -495,11 +495,8 @@ select.field {
 .installed-table__path { font-family: var(--font-mono); color: var(--text-dim); font-size: 0.78rem; word-break: break-all; }
 .installed-empty { color: var(--text-dim); padding: 2rem 0.7rem; text-align: center; }
 
-.installed-card { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-.installed-card:hover { border-color: var(--border-strong); }
-.installed-card__swatch { aspect-ratio: 2.4/1; }
-.installed-card__body { padding: 0.7rem 0.85rem 0.85rem; }
-.installed-card__name { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.4rem; word-break: break-word; }
-.installed-card__row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem 0.5rem; margin-bottom: 0.5rem; }
-.installed-card__base { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim); margin-left: auto; }
-.installed-card__path { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card.installed-card { border-color: var(--accent-soft); }
+.card.installed-card:hover, .card.installed-card:focus-visible { border-color: var(--accent-text); }
+.card__thumb { position: relative; }
+.installed-card__badge { position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(0, 0, 0, 0.55); }
+.installed-card__version { font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-text); }
