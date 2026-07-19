@@ -30,7 +30,7 @@
     });
   }
 
-  // ---- installed page: client-side sort + filter over server-rendered rows ----
+  // ---- installed page: client-side sort + filter over server-rendered cards/rows ----
   function initInstalledTable() {
     var root = document.getElementById("installed-root");
     if (!root) return;
@@ -41,81 +41,30 @@
     var tableBody = document.getElementById("installed-body");
     var gridEl = document.getElementById("installed-grid");
     var sortButtons = root.querySelectorAll(".sort-btn");
+    var emptyCard = document.getElementById("installed-empty-grid");
+    var emptyRow = document.getElementById("installed-empty-row");
 
-    // Rows are read from data-* attributes and rebuilt with createElement/
-    // textContent (never innerHTML) — a <tr> can't legally live inside a plain
-    // wrapper <div> for cloning anyway, since the HTML parser would foster-parent
-    // it out of the table context.
-    function el(tag, className, text) {
-      var e = document.createElement(tag);
-      if (className) e.className = className;
-      if (text !== undefined) e.textContent = text;
-      return e;
-    }
+    var cardEls = Array.prototype.filter.call(
+      gridEl.querySelectorAll("[data-installed-row]"),
+      function (el) { return el !== emptyCard; }
+    );
+    var rowEls = Array.prototype.filter.call(
+      tableBody.querySelectorAll("[data-installed-row]"),
+      function (el) { return el !== emptyRow; }
+    );
 
-    function buildRowNode(r) {
-      var tr = document.createElement("tr");
-      var tdName = el("td", "installed-table__name", r.name);
-      var tdType = document.createElement("td");
-      tdType.appendChild(el("span", "installed-table__type", r.type));
-      var tdBase = el("td", "installed-table__base", r.base);
-      var tdPath = el("td", "installed-table__path", r.path);
-      tr.append(tdName, tdType, tdBase, tdPath);
-      return tr;
-    }
-
-    function buildCardNode(r) {
-      var card = el("div", "installed-card");
-      var swatch = el("div", "installed-card__swatch");
-      swatch.style.background = swatchGradient(r.name);
-      var body = el("div", "installed-card__body");
-      var name = el("div", "installed-card__name", r.name);
-      var row = el("div", "installed-card__row");
-      row.appendChild(el("span", "installed-table__type", r.type));
-      row.appendChild(el("span", "installed-card__base", r.base));
-      var path = el("div", "installed-card__path", r.path);
-      path.title = r.path;
-      body.append(name, row, path);
-      card.append(swatch, body);
-      return card;
-    }
-
-    function swatchGradient(seedStr) {
-      var h = 0;
-      for (var i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) | 0;
-      h = Math.abs(h) % 360;
-      var h2 = (h + 35) % 360;
-      return "linear-gradient(135deg, hsl(" + h + ",22%,20%), hsl(" + h2 + ",18%,12%))";
-    }
-
-    var rows = Array.prototype.map.call(root.querySelectorAll("[data-installed-row]"), function (rowEl) {
+    var rows = cardEls.map(function (cardEl, i) {
       return {
-        name: rowEl.dataset.name,
-        type: rowEl.dataset.type,
-        base: rowEl.dataset.base,
-        path: rowEl.dataset.path,
+        card: cardEl,
+        row: rowEls[i],
+        name: cardEl.dataset.name,
+        type: cardEl.dataset.type,
+        base: cardEl.dataset.base,
+        path: cardEl.dataset.path,
       };
     });
     var total = rows.length;
     var sort = { key: "name", dir: 1 };
-
-    function emptyRow() {
-      var tr = document.createElement("tr");
-      var td = document.createElement("td");
-      td.className = "installed-empty";
-      td.colSpan = 4;
-      td.textContent = "No installed models match this filter.";
-      tr.appendChild(td);
-      return tr;
-    }
-
-    function emptyCard() {
-      var p = document.createElement("p");
-      p.className = "installed-empty";
-      p.style.gridColumn = "1/-1";
-      p.textContent = "No installed models match this filter.";
-      return p;
-    }
 
     function render() {
       var filterText = filterInput.value.toLowerCase();
@@ -127,13 +76,21 @@
       });
       visible.sort(function (a, b) { return a[sort.key].localeCompare(b[sort.key]) * sort.dir; });
 
-      if (!visible.length) {
-        tableBody.replaceChildren(emptyRow());
-        gridEl.replaceChildren(emptyCard());
-      } else {
-        tableBody.replaceChildren.apply(tableBody, visible.map(buildRowNode));
-        gridEl.replaceChildren.apply(gridEl, visible.map(buildCardNode));
-      }
+      rows.forEach(function (r) {
+        r.card.hidden = true;
+        r.row.hidden = true;
+      });
+      visible.forEach(function (r) {
+        r.card.hidden = false;
+        r.row.hidden = false;
+        gridEl.appendChild(r.card);
+        tableBody.appendChild(r.row);
+      });
+      gridEl.appendChild(emptyCard);
+      tableBody.appendChild(emptyRow);
+      emptyCard.hidden = visible.length !== 0;
+      emptyRow.hidden = visible.length !== 0;
+
       countEl.textContent = visible.length + " of " + total + " installed";
 
       sortButtons.forEach(function (btn) {

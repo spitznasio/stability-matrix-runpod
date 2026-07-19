@@ -29,7 +29,12 @@
     </span>
   </div>
 
-  <div class="grid" id="installed-grid"></div>
+  <div class="grid" id="installed-grid">
+    {% for model in models %}
+      {% include "_installed_card.html" %}
+    {% endfor %}
+    <p class="installed-empty" id="installed-empty-grid" style="grid-column: 1/-1;" hidden>No installed models match this filter.</p>
+  </div>
   <table class="installed-table" id="installed-table" style="display:none;">
     <thead>
       <tr>
@@ -39,16 +44,22 @@
         <th><button type="button" class="sort-btn" data-sort-key="path">Path <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button></th>
       </tr>
     </thead>
-    <tbody id="installed-body"></tbody>
+    <tbody id="installed-body">
+      {% for model in models %}
+      <tr data-installed-row data-row-href="/installed/{{ model.path_hash }}" style="cursor:pointer;"
+          data-name="{{ model.get('name', '—') }}"
+          data-type="{{ model.get('type', '—') }}"
+          data-base="{{ model.get('base', '—') }}"
+          data-path="{{ model.get('path', '—') }}">
+        <td class="installed-table__name">{{ model.get('name', '—') }}</td>
+        <td><span class="installed-table__type">{{ model.get('type', '—') }}</span></td>
+        <td class="installed-table__base">{{ model.get('base', '—') }}</td>
+        <td class="installed-table__path">{{ model.get('path', '—') }}</td>
+      </tr>
+      {% endfor %}
+      <tr id="installed-empty-row" hidden><td class="installed-empty" colspan="4">No installed models match this filter.</td></tr>
+    </tbody>
   </table>
-
-  {% for m in models %}
-  <span data-installed-row hidden
-    data-name="{{ m.get('name', '—') }}"
-    data-type="{{ m.get('type', '—') }}"
-    data-base="{{ m.get('base', '—') }}"
-    data-path="{{ m.get('path', '—') }}"></span>
-  {% endfor %}
 </div>
 {% else %}
 <p class="empty">No models installed yet.</p>
