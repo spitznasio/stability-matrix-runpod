@@ -64,7 +64,7 @@ def _build_sidecar_metadata(model: dict, version_id: int) -> dict:
     return {
         "civitai_model_id": model.get("id"),
         "civitai_version_id": version_id,
-        "civitai_url": f"https://civitai.com/models/{model.get('id')}",
+        "civitai_url": f"https://civitai.com/models/{model['id']}" if model.get("id") else None,
         "model_name": model.get("name"),
         "type": model.get("type"),
         "base_model": version.get("baseModel") if version else None,
@@ -97,12 +97,12 @@ def _extract_installed_path(job: dict) -> str | None:
     # Only this field has been observed directly — the other fallbacks below are
     # speculative, kept for payload shapes (e.g. URL-sourced installs) not yet
     # confirmed against a live server.
-    config_out = job.get("config") if isinstance(job.get("config"), dict) else None
+    config_out = job.get("config_out") if isinstance(job.get("config_out"), dict) else None
     if config_out and config_out.get("path"):
         return config_out["path"]
-    config_out2 = job.get("config_out") if isinstance(job.get("config_out"), dict) else None
-    if config_out2 and config_out2.get("path"):
-        return config_out2["path"]
+    config_in_speculative = job.get("config") if isinstance(job.get("config"), dict) else None
+    if config_in_speculative and config_in_speculative.get("path"):
+        return config_in_speculative["path"]
     if job.get("path"):
         return job["path"]
     return None

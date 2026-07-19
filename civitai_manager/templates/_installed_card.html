@@ -21,6 +21,6 @@
       <span class="installed-card__version">{{ model.metadata.installed_version_name }} installed</span>
       {% endif %}
     </div>
-    <div class="card__creator">{{ model.metadata.creator_username if model.metadata else "local model" }}</div>
+    <div class="card__creator">{{ (model.metadata.creator_username or "unknown") if model.metadata else "local model" }}</div>
   </div>
 </a>
