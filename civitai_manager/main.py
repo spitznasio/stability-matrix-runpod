@@ -569,11 +569,41 @@ async def installed(request: Request):
             "installed.html",
             {"models": [], "error": "InvokeAI is not reachable right now.", "active_nav": "installed"},
         )
+    for m in models:
+        path = m.get("path")
+        m["metadata"] = metadata_store.read_sidecar(path) if path else None
+        m["path_hash"] = metadata_store.path_hash(path) if path else None
     return templates.TemplateResponse(
         request,
         "installed.html",
         {"models": models, "error": None, "active_nav": "installed"},
     )
+
+
+@app.get("/installed/{path_hash}", response_class=HTMLResponse)
+async def installed_detail(request: Request, path_hash: str):
+    try:
+        models = await request.app.state.invokeai.list_models()
+    except httpx.HTTPError:
+        return render_error(request, "InvokeAI is not reachable right now.", status_code=502)
+    model = next(
+        (m for m in models if m.get("path") and metadata_store.path_hash(m["path"]) == path_hash),
+        None,
+    )
+    if model is None:
+        return render_error(request, "That installed model could not be found.", status_code=404)
+    metadata = metadata_store.read_sidecar(model["path"])
+    context = {
+        "request": request,
+        "model": model,
+        "metadata": metadata,
+        "active_nav": "installed",
+        "civitai_url": metadata.get("civitai_url") if metadata else None,
+        "commercial_use_display": (
+            format_commercial_use(metadata.get("allowCommercialUse")) if metadata else None
+        ),
+    }
+    return templates.TemplateResponse(request, "installed_detail.html", context)
 
 
 @app.get("/health")
