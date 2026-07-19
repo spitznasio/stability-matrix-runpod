@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ (metadata.model_name if metadata else model.get('name')) or "Installed Model" }} — CivitAI Manager{% endblock %}
+{% block content %}
+<div class="detail-shell">
+  <a class="back-link" href="/installed">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    Back to installed
+  </a>
+
+  <div class="detail-head">
+    <div class="detail-head__row">
+      <h1 class="detail-head__title">{{ (metadata.model_name if metadata else model.get('name')) or "—" }}</h1>
+      {% if civitai_url %}
+      <a class="civitai-link" href="{{ civitai_url }}" target="_blank" rel="noopener">
+        View on CivitAI
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+      </a>
+      {% endif %}
+    </div>
+    <div class="tag-row">
+      <span class="tag tag--type">{{ model.get('type', '—') }}</span>
+      <span class="stamp">INSTALLED</span>
+      {% if metadata and metadata.tags %}
+        {% for t in metadata.tags %}<span class="tag">{{ t }}</span>{% endfor %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <div class="main-pane">
+      {% if metadata and metadata.description %}
+      {# sanitized in CivitAIClient.get_model (bleach allowlist) before this was captured to the sidecar #}
+      <div class="desc is-collapsed" id="model-desc">{{ metadata.description | safe }}</div>
+      <button type="button" class="desc-toggle" onclick="var el=document.getElementById('model-desc'); var collapsed=el.classList.toggle('is-collapsed'); this.textContent = collapsed ? 'Show more' : 'Show less';">Show more</button>
+      {% endif %}
+
+      {% if metadata and metadata.trigger_words %}
+      <p class="trigger-words">
+        {% for w in metadata.trigger_words %}<code>{{ w }}</code>{% endfor %}
+      </p>
+      {% endif %}
+
+      {% if metadata and metadata.versions %}
+      <div class="version-tabs">
+        {% for v in metadata.versions %}
+        <span class="version-tab{{ ' is-active' if v.id == metadata.installed_version_id else '' }}">{{ v.name }}{{ ' (installed)' if v.id == metadata.installed_version_id else '' }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if not metadata %}
+      <p class="empty">No CivitAI metadata available for this model — it may have been installed outside CivitAI Manager, moved on disk since install, or installed before this feature was added.</p>
+      {% endif %}
+    </div>
+
+    <aside class="sidebar">
+      <div class="panel">
+        <div class="panel__heading">Install info</div>
+        <div class="stat-list">
+          <div class="stat-row"><span class="stat-row__label">Path</span><span class="stat-row__value installed-table__path">{{ model.get('path', '—') }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Type</span><span class="stat-row__value">{{ model.get('type', '—') }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Base model</span><span class="stat-row__value">{{ model.get('base', '—') }}</span></div>
+        </div>
+      </div>
+      {% if metadata %}
+      <div class="panel">
+        <div class="panel__heading">CivitAI details</div>
+        <div class="stat-list">
+          <div class="stat-row"><span class="stat-row__label">By</span><span class="stat-row__value">{{ metadata.creator_username or "unknown" }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Rating</span><span class="stat-row__value">{{ "%.1f"|format(metadata.stats.rating) if metadata.stats and metadata.stats.rating else "—" }}{% if metadata.stats and metadata.stats.ratingCount %} ({{ "{:,}".format(metadata.stats.ratingCount) }}){% endif %}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Downloads</span><span class="stat-row__value">{{ "{:,}".format(metadata.stats.downloadCount) if metadata.stats and metadata.stats.downloadCount else 0 }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Published</span><span class="stat-row__value">{{ metadata.publishedAt[:10] if metadata.publishedAt else "—" }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">License</span><span class="stat-row__value">{{ commercial_use_display or "—" }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Derivatives</span><span class="stat-row__value">{{ "Allowed" if metadata.allowDerivatives else "Not allowed" }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">NSFW</span><span class="stat-row__value">{{ "Yes" if metadata.nsfw else "No" }}</span></div>
+        </div>
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}
