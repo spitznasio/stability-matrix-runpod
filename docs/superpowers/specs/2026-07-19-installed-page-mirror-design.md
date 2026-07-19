@@ -27,13 +27,14 @@ that open a rich detail page — while still being visually distinguishable as
    `POST /install` handler fires.
 2. `POST /install` is extended to capture the full CivitAI model payload (already
    available from the `/browse` search/detail flow — either passed through as a
-   hidden form field or re-fetched via `CivitAIClient.get_model`) and write it as a
-   JSON sidecar to `/workspace/civitai-metadata/`, keyed by a hash of the eventual
-   install path.
+   hidden form field or re-fetched via `CivitAIClient.get_model`) and, once the
+   install job resolves, write it as a JSON sidecar to `/workspace/civitai-metadata/`,
+   keyed by a hash of the eventual install path.
    - Since the model's on-disk path isn't known until InvokeAI's install job
-     completes, the sidecar write happens by polling/awaiting the install job's
-     terminal state inside the `/install` handler (it already returns a job dict;
-     the job's terminal payload includes the installed model's `config.path`).
+     completes, and completion can only be observed by polling
+     `GET /api/v2/models/install/{job_id}`, this polling **must happen server-side,
+     decoupled from the client** — see "Server-side install-completion tracking"
+     below for why.
 3. `GET /installed` calls `InvokeAIClient.list_models()` as today, then for each
    model hashes its `path` and looks up a matching sidecar in
    `/workspace/civitai-metadata/`. Models with a sidecar get merged CivitAI data;
@@ -48,6 +49,42 @@ that open a rich detail page — while still being visually distinguishable as
    sidebar on the right (creator, stats, license, "View on CivitAI" link). Local
    install context (file path, disk size, install date) is shown above the
    sidebar's CivitAI panel.
+
+### Server-side install-completion tracking (why, and how)
+
+The existing `_install_status.html`/`_download_status.html` pattern is client-driven:
+the POST handler returns immediately with a `pending`/`in_progress` job, and an htmx
+element polls a `GET .../status` endpoint every 2s **only while that element is on
+the page and the tab is visible**. This is already known to be lossy — the recent
+aria2 fix (`cleanup_control_file`) only runs from inside `/download` and
+`/download/{gid}/status`, both client-triggered, so a control file is left behind if
+the user navigates away before the poll observes a terminal status. That's tolerated
+today because it's harmless: the download itself completes via aria2's own daemon
+regardless of client presence, and only a leftover file lingers.
+
+Tying the metadata sidecar write to the same client-driven pattern would be a much
+worse failure mode: the InvokeAI install itself is also entirely server-side and
+unaffected by the client navigating away, but if the sidecar write lived inside
+`GET /install/{job_id}/status`, then any install where the user tabs away before the
+final poll — plausible for large checkpoints that take minutes — would silently
+install the model with **no** metadata ever captured, permanently. The model would
+render as local-only on `/installed` forever, defeating the point of this feature for
+what's likely the common case.
+
+**Fix:** `POST /install` spawns a fire-and-forget `asyncio.create_task(...)` right
+after starting the job, which polls `InvokeAIClient.get_install_job(job_id)`
+server-side (same 2s-ish interval as the client poll, no client involvement) until it
+reaches a terminal status, then writes the sidecar on success. This task's lifetime is
+the FastAPI process, not the request/response cycle or any particular browser tab —
+it keeps running whether or not anyone is watching. The existing client-facing
+`_install_status.html` polling loop is unchanged and continues to drive the visible
+"INSTALLED"/"FAILED" stamp independently; it's a UI concern only and no longer the
+thing metadata capture depends on.
+
+Failure/shutdown edge case: if the app process restarts mid-install (e.g. a
+Server Admin-triggered restart of `civitai-manager`), the in-memory background task is
+lost and that one install's metadata won't be captured — acceptable, same class of
+gap as the path-changed case below, and rare in practice.
 
 ## Data Model
 
@@ -142,9 +179,13 @@ since the same payload/path is reused.
 
 - `POST /install` — extended to accept the CivitAI model context (passed from the
   calling template as hidden fields, matching the pattern `POST /download` already
-  uses for its metadata fields) and, once the install job reaches a terminal
-  success state, write the sidecar via a new `metadata_store.write_sidecar(...)`.
-  Install failures do not write a sidecar.
+  uses for its metadata fields). After starting the install job, spawns a
+  server-side `asyncio.create_task(...)` that polls the job independently of the
+  client (see "Server-side install-completion tracking" above) and writes the
+  sidecar via a new `metadata_store.write_sidecar(...)` once it reaches a terminal
+  success state. Install failures do not write a sidecar. The handler's HTTP
+  response is unchanged — it still returns immediately with the initial job status,
+  same as today.
 - `GET /installed` — unchanged response shape at a glance, but now enriches each
   model dict with its sidecar data (or `None`) before rendering.
 - `GET /installed/{path_hash}` — new route. Looks up the InvokeAI model by
@@ -171,6 +212,12 @@ Mirrors the shape of `downloads.py`'s sidecar helpers:
   longer matches; model reverts to local-only display until reinstalled through the
   app. Acceptable — no migration/repair path needed.
 - **Install failure**: no sidecar written; nothing to roll back.
+- **`civitai-manager` process restart mid-install** (e.g. via Server Admin): the
+  in-memory background tracking task is lost along with it, so that one install's
+  metadata won't be captured even though the InvokeAI install itself completes
+  normally. Same class of gap as "path changes" — model reverts to local-only
+  display until reinstalled through the app. No retry/recovery mechanism in this
+  iteration.
 - **Uninstall**: sidecar becomes orphaned (harmless, unreferenced file). No cleanup
   job in this iteration — acceptable technical debt, revisit only if
   `/workspace/civitai-metadata/` growth becomes a real problem.
