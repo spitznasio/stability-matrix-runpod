@@ -49,6 +49,13 @@ BASE_MODEL_CHOICES = [
 ]
 
 INSTALL_METADATA_POLL_SECONDS = 2.0
+INSTALL_METADATA_MAX_POLL_SECONDS = 1800.0  # give up after 30 minutes of polling
+
+# asyncio.create_task() does not keep a strong reference to the task itself —
+# if nothing else holds one, the task can be garbage-collected mid-await
+# (e.g. during the poll loop's asyncio.sleep), silently aborting it. Keep
+# background install-tracking tasks alive here until they finish.
+_background_install_tasks: set[asyncio.Task] = set()
 
 
 def _build_sidecar_metadata(model: dict, version_id: int) -> dict:
@@ -85,11 +92,10 @@ def _build_sidecar_metadata(model: dict, version_id: int) -> dict:
 
 
 def _extract_installed_path(job: dict) -> str | None:
-    # The exact field InvokeAI uses for the installed model's on-disk path in a
-    # completed ModelInstallJob payload has not been confirmed against a live
-    # server as of writing — try the plausible locations. If none match on a
-    # real pod, curl the job status endpoint directly (see CLAUDE.md's
-    # troubleshooting note on /install) and add the real key here.
+    # Confirmed against a live pod: a completed ModelInstallJob's config_out.path
+    # holds the installed model's on-disk path for local-source installs (a
+    # top-level "local_path" field carries the same value). The other
+    # fallbacks below are kept for payload shapes not yet observed directly.
     config_out = job.get("config") if isinstance(job.get("config"), dict) else None
     if config_out and config_out.get("path"):
         return config_out["path"]
@@ -108,7 +114,8 @@ async def _track_install_metadata(app: FastAPI, job_id: str, model_id: int, vers
     # "Server-side install-completion tracking".
     invokeai: InvokeAIClient = app.state.invokeai
     civitai: CivitAIClient = app.state.civitai
-    while True:
+    max_attempts = int(INSTALL_METADATA_MAX_POLL_SECONDS / INSTALL_METADATA_POLL_SECONDS)
+    for _ in range(max_attempts):
         await asyncio.sleep(INSTALL_METADATA_POLL_SECONDS)
         try:
             job = await invokeai.get_install_job(job_id)
@@ -147,6 +154,10 @@ async def _track_install_metadata(app: FastAPI, job_id: str, model_id: int, vers
             model_id, version_id, installed_path,
         )
         return
+    logger.warning(
+        "Install job %s did not reach a terminal status within %s seconds; giving up on metadata capture",
+        job_id, INSTALL_METADATA_MAX_POLL_SECONDS,
+    )
 
 
 @asynccontextmanager
@@ -376,9 +387,11 @@ async def install(
         )
     logger.info("Install job %s started for %s (status=%s)", job.get("id"), download_url, job.get("status"))
     if job.get("id") and model_id and version_id:
-        asyncio.create_task(
+        task = asyncio.create_task(
             _track_install_metadata(request.app, job["id"], int(model_id), int(version_id))
         )
+        _background_install_tasks.add(task)
+        task.add_done_callback(_background_install_tasks.discard)
     return templates.TemplateResponse(
         request,
         "_install_status.html",
