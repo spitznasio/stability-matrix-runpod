@@ -41,11 +41,21 @@
       {% endif %}
 
       {% if metadata and metadata.versions %}
+      {# Static snapshot captured at install time — only the installed
+         version has full data (description/trigger words/gallery above).
+         Not clickable: version-tab--static drops the hover affordance the
+         real Browse tabs have, since switching here has nothing to show. #}
       <div class="version-tabs">
         {% for v in metadata.versions %}
-        <span class="version-tab{{ ' is-active' if v.id == metadata.installed_version_id else '' }}">{{ v.name }}{{ ' (installed)' if v.id == metadata.installed_version_id else '' }}</span>
+        <span class="version-tab version-tab--static{{ ' is-active' if v.id == metadata.installed_version_id else '' }}">{{ v.name }}{{ ' (installed)' if v.id == metadata.installed_version_id else '' }}</span>
         {% endfor %}
       </div>
+      {% endif %}
+
+      {% if metadata and metadata.civitai_model_id and metadata.installed_version_id %}
+      <div class="gallery" id="gallery-{{ metadata.installed_version_id }}"
+           hx-get="/models/{{ metadata.civitai_model_id }}/versions/{{ metadata.installed_version_id }}/gallery"
+           hx-trigger="load" hx-swap="innerHTML"></div>
       {% endif %}
 
       {% if not metadata %}
@@ -79,4 +89,5 @@
     </aside>
   </div>
 </div>
+{% include "_lightbox.html" %}
 {% endblock %}

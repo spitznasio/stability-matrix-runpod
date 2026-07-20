@@ -319,6 +319,9 @@ select.field {
 
 .version-tab:hover { border-color: var(--border-strong); color: var(--text); }
 .version-tab.is-active { background: var(--accent-grad); border-color: transparent; color: #fff; }
+.version-tab--static { cursor: default; }
+.version-tab--static:hover { border-color: var(--border); color: var(--text-muted); }
+.version-tab--static.is-active:hover { border-color: transparent; color: #fff; }
 
 .main-pane { min-width: 0; }
 
