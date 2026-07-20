@@ -3,6 +3,23 @@
 mkdir -p /workspace/invokeai
 mkdir -p /workspace/civitai-downloads
 
+# Full SSH (public IP, key auth, SCP/SFTP-capable) per RunPod's docs:
+# https://docs.runpod.io/pods/configuration/use-ssh#full-ssh-via-public-ip-with-key-authentication
+# RunPod injects the account's SSH public key(s) into $PUBLIC_KEY — sshd
+# itself isn't started by our custom ENTRYPOINT (it replaces whatever the
+# base image's own entrypoint would have done), so it has to be started here.
+# No-op if $PUBLIC_KEY is unset (e.g. local/non-RunPod runs).
+if [ -n "$PUBLIC_KEY" ]; then
+    mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
+    echo "$PUBLIC_KEY" >> ~/.ssh/authorized_keys
+    chmod 600 ~/.ssh/authorized_keys
+    # sshd refuses to start without this ("Missing privilege separation
+    # directory") — /var/run is often not persisted into the built image layer.
+    mkdir -p /var/run/sshd
+    service ssh start
+fi
+
 # Secret shared between the aria2 RPC daemon and CivitAI Manager (the only
 # client that talks to it). Generated per boot if not set as a RunPod env
 # var; exported before any supervised process starts so both the aria2c

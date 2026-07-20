@@ -97,6 +97,8 @@ All InvokeAI state (`INVOKEAI_ROOT=/workspace/invokeai`) lives on the RunPod vol
 - `8000` — CivitAI Manager web app
 - `9090` — InvokeAI web UI
 - `8001` — Server Admin dashboard
+- `8002` — OneDrive Sync Manager web app
+- `22` — Full SSH (public IP, key auth, SCP/SFTP-capable). `start.sh` starts `sshd` and injects RunPod's `$PUBLIC_KEY` into `authorized_keys` — our custom `ENTRYPOINT` replaces the base image's own entrypoint, which is what normally handles this, so it has to be done explicitly. This is separate from RunPod's proxied "basic SSH" (no setup needed, but no SCP/SFTP) — see [Connect to a Pod with SSH](https://docs.runpod.io/pods/configuration/use-ssh). **The RunPod template must expose `22/tcp` and the pod must have a public IP for this to work** — neither is automatic from the Docker image alone; update the template's ports and (if changing an existing pod) recreate the pod, since port exposure isn't applied to already-running pods.
 
 ## Environment Variables (set in RunPod, not hardcoded)
 
