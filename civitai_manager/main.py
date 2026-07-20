@@ -316,6 +316,28 @@ async def httpx_error_handler(request: Request, exc: httpx.HTTPError) -> HTMLRes
     # why. Logging it here means the log viewer shows the actual cause
     # instead of requiring a manual curl against InvokeAI/aria2 to diagnose.
     logger.exception("Unhandled upstream error on %s %s", request.method, request.url.path, exc_info=exc)
+    # CivitAI's own search backend periodically returns 503 under load
+    # (confirmed live: "Model search is temporarily overloaded — please
+    # retry.", independent of anything on our side — plain listing without a
+    # text query keeps working). Every InvokeAI/aria2 call already has its
+    # own local try/except with a tailored message, so in practice only
+    # CivitAI calls (browse, model_detail) ever reach this global handler —
+    # but check the host rather than assume that stays true.
+    if (
+        isinstance(exc, httpx.HTTPStatusError)
+        and exc.response.status_code == 503
+        and exc.request.url.host == "civitai.com"
+    ):
+        detail = None
+        try:
+            detail = exc.response.json().get("error")
+        except (ValueError, AttributeError):
+            pass
+        message = "CivitAI is temporarily unavailable"
+        if detail:
+            message += f" ({detail})"
+        message += " — this is on CivitAI's end, not the app. Try again in a few minutes."
+        return render_error(request, message, status_code=502)
     return render_error(request, f"Upstream request failed: {exc}", status_code=502)
 
 
