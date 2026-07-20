@@ -37,6 +37,18 @@ class InvokeAIClient:
         response.raise_for_status()
         return response.json()
 
+    async def update_model_config(self, key: str, changes: dict) -> dict:
+        # Works around an InvokeAI 6.13.6 install-time bug: the
+        # ModelRecordChanges body passed to POST /models/install is received
+        # correctly (visible in a completed job's config_in) but
+        # trigger_phrases and source_url are silently dropped from the
+        # resulting model record (config_out) — name and description apply
+        # fine, only those two fields don't stick. Confirmed by testing that
+        # this PATCH endpoint, called after install, reliably applies them.
+        response = await self._client.patch(f"/api/v2/models/i/{key}", json=changes)
+        response.raise_for_status()
+        return response.json()
+
     async def list_models(self) -> list[dict]:
         response = await self._client.get("/api/v2/models/")
         response.raise_for_status()

@@ -108,56 +108,127 @@ def _extract_installed_path(job: dict) -> str | None:
     return None
 
 
-async def _track_install_metadata(app: FastAPI, job_id: str, model_id: int, version_id: int) -> None:
-    # Runs independently of any client connection so metadata capture doesn't
-    # depend on a browser tab staying open/visible for the entire install —
-    # see docs/superpowers/specs/2026-07-19-installed-page-mirror-design.md,
-    # "Server-side install-completion tracking".
-    invokeai: InvokeAIClient = app.state.invokeai
-    civitai: CivitAIClient = app.state.civitai
+async def _wait_for_completed_job(invokeai: "InvokeAIClient", job_id: str) -> dict | None:
+    # Shared by every background install-tracking task below. Runs
+    # independently of any client connection so this doesn't depend on a
+    # browser tab staying open/visible for the entire install — see
+    # docs/superpowers/specs/2026-07-19-installed-page-mirror-design.md,
+    # "Server-side install-completion tracking". Returns the completed job
+    # dict on success; returns None (having already logged why) if the job
+    # errored, failed, or never reached a terminal status within the bound.
     max_attempts = int(INSTALL_METADATA_MAX_POLL_SECONDS / INSTALL_METADATA_POLL_SECONDS)
     for _ in range(max_attempts):
         await asyncio.sleep(INSTALL_METADATA_POLL_SECONDS)
         try:
             job = await invokeai.get_install_job(job_id)
         except httpx.HTTPError:
-            logger.warning(
-                "Lost contact with InvokeAI tracking install job %s for metadata capture",
-                job_id, exc_info=True,
-            )
-            return
+            logger.warning("Lost contact with InvokeAI tracking install job %s", job_id, exc_info=True)
+            return None
         if job.get("status") not in TERMINAL_STATUSES:
             continue
         if job.get("status") != "completed":
-            logger.info(
-                "Install job %s did not complete successfully (status=%s); skipping metadata capture",
-                job_id, job.get("status"),
-            )
-            return
-        installed_path = _extract_installed_path(job)
-        if not installed_path:
-            logger.warning(
-                "Install job %s completed but no installed path found in job payload; "
-                "skipping metadata capture. job=%s", job_id, job,
-            )
-            return
-        try:
-            model = await civitai.get_model(model_id)
-        except httpx.HTTPError:
-            logger.warning(
-                "Failed to fetch CivitAI model %s for metadata capture after install",
-                model_id, exc_info=True,
-            )
-            return
-        metadata_store.write_sidecar(installed_path, _build_sidecar_metadata(model, version_id))
-        logger.info(
-            "Captured install metadata for model_id=%s version_id=%s at %s",
-            model_id, version_id, installed_path,
+            logger.info("Install job %s did not complete successfully (status=%s)", job_id, job.get("status"))
+            return None
+        return job
+    logger.warning(
+        "Install job %s did not reach a terminal status within %s seconds; giving up",
+        job_id, INSTALL_METADATA_MAX_POLL_SECONDS,
+    )
+    return None
+
+
+async def _track_install_metadata(app: FastAPI, job_id: str, model_id: int, version_id: int) -> None:
+    invokeai: InvokeAIClient = app.state.invokeai
+    civitai: CivitAIClient = app.state.civitai
+    job = await _wait_for_completed_job(invokeai, job_id)
+    if job is None:
+        return
+    installed_path = _extract_installed_path(job)
+    if not installed_path:
+        logger.warning(
+            "Install job %s completed but no installed path found in job payload; "
+            "skipping metadata capture. job=%s", job_id, job,
         )
         return
-    logger.warning(
-        "Install job %s did not reach a terminal status within %s seconds; giving up on metadata capture",
-        job_id, INSTALL_METADATA_MAX_POLL_SECONDS,
+    try:
+        model = await civitai.get_model(model_id)
+    except httpx.HTTPError:
+        logger.warning(
+            "Failed to fetch CivitAI model %s for metadata capture after install",
+            model_id, exc_info=True,
+        )
+        return
+    metadata_store.write_sidecar(installed_path, _build_sidecar_metadata(model, version_id))
+    logger.info(
+        "Captured install metadata for model_id=%s version_id=%s at %s",
+        model_id, version_id, installed_path,
+    )
+
+
+async def _track_download_install(
+    app: FastAPI,
+    job_id: str,
+    civitai_model_id: int | None,
+    civitai_version_id: int | None,
+    trigger_words: list[str] | None,
+    civitai_url: str | None,
+) -> None:
+    # Two follow-ups that only apply to installs started from the Downloads
+    # page (POST /downloads/{filename}/install) — unlike the direct "Install"
+    # button, that flow already has CivitAI metadata captured at download
+    # time and passes it as install-time config overrides:
+    #
+    #   1. InvokeAI 6.13.6 silently drops trigger_phrases/source_url from
+    #      that install-time config (confirmed empirically: a completed
+    #      job's config_in carries the values we sent, config_out doesn't —
+    #      name/description apply fine, only these two don't stick). Re-apply
+    #      them via PATCH /models/i/{key} once the model record exists,
+    #      which was confirmed to actually work. Harmless no-op for
+    #      trigger_phrases on model types that don't support it (e.g.
+    #      TextualInversion/embedding — InvokeAI just doesn't add the key).
+    #   2. This install path was never wired into the Installed-page
+    #      metadata sidecar capture that POST /install already gets via
+    #      _track_install_metadata — do the same capture here.
+    invokeai: InvokeAIClient = app.state.invokeai
+    civitai: CivitAIClient = app.state.civitai
+    job = await _wait_for_completed_job(invokeai, job_id)
+    if job is None:
+        return
+
+    config_out = job.get("config_out") if isinstance(job.get("config_out"), dict) else None
+    model_key = config_out.get("key") if config_out else None
+    reapply = {k: v for k, v in {"trigger_phrases": trigger_words, "source_url": civitai_url}.items() if v}
+    if model_key and reapply:
+        try:
+            await invokeai.update_model_config(model_key, reapply)
+            logger.info("Re-applied %s on model %s after download-install", list(reapply), model_key)
+        except httpx.HTTPError:
+            logger.warning(
+                "Failed to re-apply %s on model %s after download-install",
+                list(reapply), model_key, exc_info=True,
+            )
+
+    if not (civitai_model_id and civitai_version_id):
+        return
+    installed_path = _extract_installed_path(job)
+    if not installed_path:
+        logger.warning(
+            "Download-install job %s completed but no installed path found in job payload; "
+            "skipping metadata capture. job=%s", job_id, job,
+        )
+        return
+    try:
+        model = await civitai.get_model(civitai_model_id)
+    except httpx.HTTPError:
+        logger.warning(
+            "Failed to fetch CivitAI model %s for metadata capture after download-install",
+            civitai_model_id, exc_info=True,
+        )
+        return
+    metadata_store.write_sidecar(installed_path, _build_sidecar_metadata(model, civitai_version_id))
+    logger.info(
+        "Captured download-install metadata for model_id=%s version_id=%s at %s",
+        civitai_model_id, civitai_version_id, installed_path,
     )
 
 
@@ -552,6 +623,21 @@ async def downloads_install(request: Request, filename: str):
             "InvokeAI is not ready yet, or the install request was rejected — try again shortly.",
         )
     logger.info("Install job %s started for %s (status=%s)", job.get("id"), target, job.get("status"))
+    if job.get("id"):
+        raw_model_id = metadata.get("model_id")
+        raw_version_id = metadata.get("version_id")
+        task = asyncio.create_task(
+            _track_download_install(
+                request.app,
+                job["id"],
+                int(raw_model_id) if raw_model_id else None,
+                int(raw_version_id) if raw_version_id else None,
+                metadata.get("trigger_words"),
+                metadata.get("civitai_url"),
+            )
+        )
+        _background_install_tasks.add(task)
+        task.add_done_callback(_background_install_tasks.discard)
     return templates.TemplateResponse(
         request,
         "_install_status.html",
