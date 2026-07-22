@@ -454,6 +454,8 @@ form.htmx-request .btn { opacity: 0.6; pointer-events: none; }
 
 .lightbox__chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: auto; }
 .chip { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); border: 1px solid var(--border); border-radius: 3px; padding: 0.2rem 0.5rem; }
+.chip--clear { cursor: pointer; color: var(--danger); border-color: var(--danger); }
+.chip--clear:hover { background: rgba(250, 82, 82, 0.12); }
 .lightbox__empty { color: var(--text-dim); font-size: 0.85rem; }
 
 @media (max-width: 640px) {

@@ -427,6 +427,9 @@ async def browse(
         "prev_param": ",".join(prev_stack[:-1]),
         "next_prev_param": ",".join([*prev_stack, cursor or "_root_"]),
         "return_to": return_to,
+        "has_active_filters": bool(
+            q or type_list or base_model or sort != "Most Downloaded" or period != "AllTime" or nsfw == "false"
+        ),
     }
     template = "browse_results.html" if is_htmx(request) else "browse.html"
     return templates.TemplateResponse(request, template, context)
