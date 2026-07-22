@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import time
 
 from starlette.concurrency import run_in_threadpool
 
@@ -62,6 +63,7 @@ async def build_payload() -> dict:
     history.record(system, network, diskio_data, gpu)
 
     return {
+        "ts": time.time(),
         "system": system,
         "network": network,
         "diskio": diskio_data,

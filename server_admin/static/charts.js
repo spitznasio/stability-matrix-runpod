@@ -110,14 +110,17 @@
   }
 
   function updateAll(tick) {
-    var now = Date.now() / 1000;
-    appendPoint(CHARTS.cpu, now, tick.system.cpu_percent);
-    appendPoint(CHARTS.mem, now, tick.system.mem_percent);
-    appendPoint(CHARTS.disk, now, tick.system.disk_percent);
-    appendPoint(CHARTS.netSend, now, tick.network.send_rate_bps);
-    appendPoint(CHARTS.netRecv, now, tick.network.recv_rate_bps);
-    appendPoint(CHARTS.diskRead, now, tick.diskio.read_rate_bps);
-    appendPoint(CHARTS.diskWrite, now, tick.diskio.write_rate_bps);
+    // Use the server's own clock (tick.ts) rather than the browser's, so a
+    // live-appended point can't drift from the server-timestamped snapshot
+    // history on a client with clock skew.
+    var ts = tick.ts;
+    appendPoint(CHARTS.cpu, ts, tick.system.cpu_percent);
+    appendPoint(CHARTS.mem, ts, tick.system.mem_percent);
+    appendPoint(CHARTS.disk, ts, tick.system.disk_percent);
+    appendPoint(CHARTS.netSend, ts, tick.network.send_rate_bps);
+    appendPoint(CHARTS.netRecv, ts, tick.network.recv_rate_bps);
+    appendPoint(CHARTS.diskRead, ts, tick.diskio.read_rate_bps);
+    appendPoint(CHARTS.diskWrite, ts, tick.diskio.write_rate_bps);
   }
 
   window.charts = { init: initAllCharts, loadAll: loadAll, updateAll: updateAll };

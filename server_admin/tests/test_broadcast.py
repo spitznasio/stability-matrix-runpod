@@ -1,4 +1,5 @@
 import asyncio
+import time
 from unittest.mock import patch
 
 import pytest
@@ -51,6 +52,8 @@ async def test_build_payload_assembles_and_records_history():
     assert payload["gpus"] == []
     assert payload["services"] == {}
     assert payload["health"] == "ok"
+    assert isinstance(payload["ts"], float)
+    assert abs(payload["ts"] - time.time()) < 5
 
 
 @pytest.mark.asyncio
