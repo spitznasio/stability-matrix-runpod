@@ -95,7 +95,7 @@ When a file is downloaded through the app, a sidecar JSON file (`<filename>.civi
 
 ### InvokeAI config injection
 
-`start.sh` reads `/workspace/invokeai/invokeai.yaml` at container start, not at image build time, so the CivitAI token (set as a RunPod env var `CIVITAI_API_TOKEN`) is written before the server launches. The config file lives on the volume disk and persists across pod restarts.
+`start.sh` reads `/workspace/invokeai/invokeai.yaml` at container start, not at image build time, so the CivitAI and HuggingFace tokens (set as RunPod env vars `CIVITAI_API_TOKEN` / `HF_TOKEN`) are written into its `remote_api_tokens` list (matched by URL regex: `civitai.com`/`civitai.red` for CivitAI, `huggingface.co` for HuggingFace) before the server launches. This is InvokeAI's own model manager's only way to authenticate downloads — it does not read `HF_TOKEN` itself; that var only authenticates standalone `huggingface-cli`/`huggingface_hub` usage in a terminal, not InvokeAI's internal downloader. The config file lives on the volume disk and persists across pod restarts.
 
 ### Volume disk at /workspace
 
@@ -114,7 +114,8 @@ All InvokeAI state (`INVOKEAI_ROOT=/workspace/invokeai`) lives on the RunPod vol
 
 | Variable | Purpose |
 | --- | --- |
-| `CIVITAI_API_TOKEN` | Injected into `invokeai.yaml` by `start.sh` |
+| `CIVITAI_API_TOKEN` | Injected into `invokeai.yaml`'s `remote_api_tokens` by `start.sh`, so InvokeAI's own downloads from CivitAI are authenticated |
+| `HF_TOKEN` | Injected into `invokeai.yaml`'s `remote_api_tokens` by `start.sh`, so InvokeAI's own downloads of gated/private HuggingFace models are authenticated. Also picked up automatically by standalone `huggingface-cli`/`huggingface_hub` usage in a terminal (that library reads `HF_TOKEN` directly) — but that's a separate mechanism from the `invokeai.yaml` injection, which InvokeAI's model manager needs instead |
 | `PYTORCH_CUDA_ALLOC_CONF` | Set to `backend:cudaMallocAsync` in image; override with `max_split_size_mb:512,expandable_segments:True` if OOM during tiling |
 | `CUDA_CACHE_MAXSIZE` | `4294967296` (4 GB shader cache) |
 | `HF_HUB_ENABLE_HF_TRANSFER` | Enables Rust-based fast transfer for HuggingFace downloads |

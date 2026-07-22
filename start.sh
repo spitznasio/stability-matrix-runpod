@@ -38,14 +38,23 @@ fi
 # process and civitai-manager inherit the same value via os.environ.
 export ARIA2_RPC_SECRET="${ARIA2_RPC_SECRET:-$(python3 -c 'import secrets; print(secrets.token_hex(32))')}"
 
-# Inject CivitAI API token into InvokeAI config before the server starts.
-# Set CIVITAI_API_TOKEN as a RunPod environment variable — never hardcode it.
-if [ -n "$CIVITAI_API_TOKEN" ]; then
+# Inject CivitAI / HuggingFace API tokens into InvokeAI config before the
+# server starts, so InvokeAI's own model downloads are authenticated.
+# InvokeAI's model manager only reads download tokens from `remote_api_tokens`
+# in invokeai.yaml (matched by URL regex) -- it does NOT read generic env
+# vars like HF_TOKEN itself; that var only authenticates standalone
+# `huggingface-cli`/huggingface_hub usage in a terminal, not InvokeAI's
+# internal downloader. Set CIVITAI_API_TOKEN / HF_TOKEN as RunPod environment
+# variables — never hardcode them. Combined into one block (rather than one
+# per token) because each write replaces the whole `remote_api_tokens` list —
+# two separate sequential writes would have the second clobber the first.
+if [ -n "$CIVITAI_API_TOKEN" ] || [ -n "$HF_TOKEN" ]; then
     python3 - <<PYEOF
-import yaml, os, sys
+import yaml, os
 
 config_path = "/workspace/invokeai/invokeai.yaml"
-token = os.environ["CIVITAI_API_TOKEN"]
+civitai_token = os.environ.get("CIVITAI_API_TOKEN")
+hf_token = os.environ.get("HF_TOKEN")
 
 try:
     with open(config_path) as f:
@@ -54,10 +63,13 @@ except FileNotFoundError:
     config = {}
 
 schema_version = config.pop("schema_version", "4.0.2")
-config["remote_api_tokens"] = [
-    {"url_regex": "civitai.com", "token": token},
-    {"url_regex": "civitai.red", "token": token},
-]
+remote_api_tokens = []
+if civitai_token:
+    remote_api_tokens.append({"url_regex": "civitai.com", "token": civitai_token})
+    remote_api_tokens.append({"url_regex": "civitai.red", "token": civitai_token})
+if hf_token:
+    remote_api_tokens.append({"url_regex": "huggingface.co", "token": hf_token})
+config["remote_api_tokens"] = remote_api_tokens
 
 with open(config_path, "w") as f:
     f.write("# Internal metadata - do not edit:\n")
