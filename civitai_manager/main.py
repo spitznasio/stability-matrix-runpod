@@ -18,6 +18,7 @@ from . import config, downloads, metadata_store
 from .aria2_client import Aria2Client
 from .aria2_client import TERMINAL_STATUSES as ARIA2_TERMINAL_STATUSES
 from .civitai_client import CivitAIClient
+from .errors import summarize_upstream_error
 from .formatting import format_commercial_use
 from .invokeai_client import InvokeAIClient
 from .sanitize import html_to_text
@@ -338,7 +339,7 @@ async def httpx_error_handler(request: Request, exc: httpx.HTTPError) -> HTMLRes
             message += f" ({detail})"
         message += " — this is on CivitAI's end, not the app. Try again in a few minutes."
         return render_error(request, message, status_code=502)
-    return render_error(request, f"Upstream request failed: {exc}", status_code=502)
+    return render_error(request, summarize_upstream_error(exc, "CivitAI"), status_code=502)
 
 
 @app.get("/")
@@ -456,9 +457,18 @@ async def version_gallery(request: Request, model_id: int, version_id: int, refr
     # dozens of versions (one extra request per version).
     try:
         images = await request.app.state.civitai.get_version_images(version_id, refresh=refresh)
-    except httpx.HTTPError:
-        images = []
-    return templates.TemplateResponse(request, "_gallery.html", {"images": images})
+    except httpx.HTTPError as exc:
+        logger.warning(
+            "Failed to load gallery for model_id=%s version_id=%s", model_id, version_id, exc_info=True
+        )
+        return templates.TemplateResponse(
+            request, "_gallery.html",
+            {
+                "images": [], "error": summarize_upstream_error(exc, "CivitAI"),
+                "retry_url": f"/models/{model_id}/versions/{version_id}/gallery",
+            },
+        )
+    return templates.TemplateResponse(request, "_gallery.html", {"images": images, "error": None})
 
 
 @app.post("/install", response_class=HTMLResponse)
@@ -473,12 +483,9 @@ async def install(
         job = await request.app.state.invokeai.install_model(
             download_url, config.CIVITAI_API_TOKEN
         )
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
         logger.warning("Install request rejected by InvokeAI for %s", download_url, exc_info=True)
-        return render_error(
-            request,
-            "InvokeAI is not ready yet, or the install request was rejected — try again shortly.",
-        )
+        return render_error(request, summarize_upstream_error(exc, "InvokeAI"))
     logger.info("Install job %s started for %s (status=%s)", job.get("id"), download_url, job.get("status"))
     if job.get("id") and model_id and version_id:
         task = asyncio.create_task(
@@ -528,12 +535,9 @@ async def download(
     try:
         gid = await request.app.state.aria2.add_download(download_url, filename, sha256 or None)
         job = await request.app.state.aria2.tell_status(gid)
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
         logger.warning("aria2 daemon unreachable queueing download for %s", filename, exc_info=True)
-        return render_error(
-            request,
-            "The download daemon is not reachable right now — try again shortly.",
-        )
+        return render_error(request, summarize_upstream_error(exc, "the download daemon"))
     # aria2 sanitizes `filename` down to a bare basename before writing the
     # file (see aria2_client._sanitize_filename) — the sidecar must be keyed
     # off the actual on-disk name reported in the job, or it won't be found
@@ -638,12 +642,9 @@ async def downloads_install(request: Request, filename: str):
         job = await request.app.state.invokeai.install_model(
             str(target), config.CIVITAI_API_TOKEN, inplace=True, config=install_config
         )
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
         logger.warning("Install request rejected by InvokeAI for %s", target, exc_info=True)
-        return render_error(
-            request,
-            "InvokeAI is not ready yet, or the install request was rejected — try again shortly.",
-        )
+        return render_error(request, summarize_upstream_error(exc, "InvokeAI"))
     logger.info("Install job %s started for %s (status=%s)", job.get("id"), target, job.get("status"))
     if job.get("id"):
         raw_model_id = metadata.get("model_id")
