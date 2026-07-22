@@ -3,6 +3,14 @@ name: Build and Push Docker Image
 on:
   push:
     branches: [main, 6.13.6]
+    paths-ignore:
+      - '*.md'
+      - '*.code-workspace'
+      - 'docs/**'
+      - 'download_from_*.py'
+      - 'upload_*.py'
+      - 'plan-*.md'
+      - 'skills-lock.json'
   workflow_dispatch:
 
 permissions:
