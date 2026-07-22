@@ -137,6 +137,31 @@
     }).observe(region, { childList: true });
   }
 
+  // ---- slow-job hint: nudge if an install/download status fragment has
+  // been polling for a while. Tracked client-side, keyed by the fragment's
+  // element id, which is stable across every outerHTML poll swap. ----
+  var jobStartTimes = {};
+  var SLOW_JOB_MS = 5 * 60 * 1000;
+
+  function tickSlowJobHints() {
+    document.querySelectorAll(".install-status[id]").forEach(function (el) {
+      if (!el.hasAttribute("hx-get")) {
+        delete jobStartTimes[el.id];
+        return;
+      }
+      if (!(el.id in jobStartTimes)) jobStartTimes[el.id] = Date.now();
+      var elapsed = Date.now() - jobStartTimes[el.id];
+      if (elapsed > SLOW_JOB_MS && !el.querySelector(".install-status__slow-hint")) {
+        var hint = document.createElement("span");
+        hint.className = "install-status__slow-hint";
+        hint.textContent = "still going — this is taking longer than usual";
+        el.appendChild(hint);
+      }
+    });
+  }
+
+  setInterval(tickSlowJobHints, 15000);
+
   function init() {
     initViewToggles();
     initInstalledTable();
