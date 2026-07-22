@@ -14,12 +14,43 @@
       <div class="meter__ticks"><span></span><span></span><span></span><span></span></div>
     </div>
     <div class="metric-card__sub">
-      VRAM {{ "%.0f"|format(g.memory_used_mb) }} / {{ "%.0f"|format(g.memory_total_mb) }} MB ·
-      {{ "%.0f"|format(g.temperature_c) }}&deg;C
+      VRAM {{ "%.0f"|format(g.memory_used_mb) }} / {{ "%.0f"|format(g.memory_total_mb) }} MB
+      {% if g.temperature_c is not none %} · {{ "%.0f"|format(g.temperature_c) }}&deg;C{% endif %}
       {% if g.power_draw_w is not none %} · {{ "%.0f"|format(g.power_draw_w) }} W{% endif %}
     </div>
+    {% if g.clocks %}
+    <div class="metric-card__sub">
+      Clocks: {{ g.clocks.graphics_mhz }} MHz gfx · {{ g.clocks.sm_mhz }} MHz sm · {{ g.clocks.mem_mhz }} MHz mem
+    </div>
+    {% endif %}
+    {% if g.ecc_errors is not none %}
+    <div class="metric-card__sub">ECC errors (uncorrected, aggregate): {{ g.ecc_errors }}</div>
+    {% endif %}
     {% set pts = gpu_history.get(g.index, [])|sparkline_points %}
     {% if pts %}<svg class="sparkline" viewBox="0 0 120 32" preserveAspectRatio="none"><polyline points="{{ pts }}" /></svg>{% endif %}
+    {% if g.processes %}
+    <table class="gpu-process-list">
+      <thead>
+        <tr><th>Process</th><th>PID</th><th>VRAM</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for proc in g.processes %}
+        <tr class="gpu-process-row">
+          <td>{{ proc.name or 'unknown' }}</td>
+          <td class="mono">{{ proc.pid }}</td>
+          <td class="mono">{{ "%.0f MB"|format(proc.used_memory_mb) if proc.used_memory_mb is not none else '—' }}</td>
+          <td>
+            {% if proc.service_key %}
+            <button class="btn btn--sm gpu-process-restart-btn"
+              data-service-name="{{ services[proc.service_key].display_name }}"
+              hx-post="/services/{{ proc.service_key }}/restart" hx-swap="none">Restart to free VRAM</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
   </div>
   {% endfor %}
 </div>

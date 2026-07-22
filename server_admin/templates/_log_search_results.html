@@ -1,0 +1,23 @@
+{% if result is not none %}
+<div class="log-search-results">
+  {% if result.matches %}
+  <p class="log-search-results__summary">
+    {{ result.matches|length }} match{{ 'es' if result.matches|length != 1 else '' }}
+    {% if result.truncated %}(truncated — showing first {{ result.matches|length }}){% endif %}
+  </p>
+  {% for m in result.matches %}
+  <div class="log-search-results__match">
+    {% for ctx_no, ctx_text in m.context_before %}
+    <div class="log-search-results__context"><span class="mono">{{ ctx_no }}</span> {{ ctx_text }}</div>
+    {% endfor %}
+    <div class="log-search-results__line"><span class="mono">{{ m.line_no }}</span> <mark>{{ m.text }}</mark></div>
+    {% for ctx_no, ctx_text in m.context_after %}
+    <div class="log-search-results__context"><span class="mono">{{ ctx_no }}</span> {{ ctx_text }}</div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="log-search-results__summary">No matches for &ldquo;{{ query }}&rdquo;.</p>
+  {% endif %}
+</div>
+{% endif %}

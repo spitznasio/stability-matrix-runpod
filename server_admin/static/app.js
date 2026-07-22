@@ -41,9 +41,40 @@
     });
   }
 
+  // ---- toast (used by the dashboard's "restart to free VRAM" button,
+  // which posts with hx-swap="none" so there's no swapped content to show
+  // feedback in) ----
+  function showToast(message) {
+    var container = document.getElementById("toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "toast-container";
+      container.className = "toast-container";
+      document.body.appendChild(container);
+    }
+    var toast = document.createElement("div");
+    toast.className = "toast";
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(function () {
+      toast.classList.add("is-leaving");
+      toast.addEventListener("transitionend", function () { toast.remove(); });
+    }, 2500);
+  }
+
+  function initGpuProcessRestart() {
+    document.body.addEventListener("htmx:afterRequest", function (evt) {
+      var btn = evt.detail.elt;
+      if (!btn.classList || !btn.classList.contains("gpu-process-restart-btn")) return;
+      var name = btn.dataset.serviceName || "service";
+      showToast(evt.detail.successful ? "Restarting " + name + "…" : "Failed to restart " + name);
+    });
+  }
+
   document.body.addEventListener("htmx:afterSwap", classifyLogLines);
   document.addEventListener("DOMContentLoaded", function () {
     classifyLogLines();
     initLogFilter();
+    initGpuProcessRestart();
   });
 })();

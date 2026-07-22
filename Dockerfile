@@ -30,7 +30,9 @@ RUN curl -LsSf https://hf.co/cli/install.sh | bash
 
 # CivitAI Manager + Server Admin web app dependencies — installed before
 # InvokeAI so its resolver pass for invokeai==${INVOKEAI_VERSION} below is
-# unaffected by these. psutil is for Server Admin's system/network telemetry.
+# unaffected by these. psutil is for Server Admin's system/network telemetry;
+# nvidia-ml-py (imports as `pynvml`) is NVIDIA's official NVML bindings,
+# used for GPU telemetry — not the unrelated, unmaintained `pynvml` package.
 RUN pip install --no-cache-dir \
     fastapi \
     "uvicorn[standard]" \
@@ -40,6 +42,7 @@ RUN pip install --no-cache-dir \
     python-multipart \
     itsdangerous \
     psutil \
+    nvidia-ml-py \
     "passlib[bcrypt]" \
     cachetools \
     bleach

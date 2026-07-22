@@ -14,6 +14,7 @@
     <button type="button" class="log-filter__btn" data-filter="errors">Errors</button>
     <button type="button" class="log-filter__btn" data-filter="warnings">Warnings</button>
   </div>
+  <a class="btn" href="/logs/download/{{ selected }}" download>Download full log</a>
 </div>
 <div id="log-tail" class="log-scroll"
   hx-get="/logs/tail" hx-trigger="every 3s" hx-include="#service-select" hx-swap="innerHTML"
@@ -22,4 +23,15 @@
   hx-on::after-swap="if (this._wasAtBottom) this.scrollTop = this.scrollHeight">
   {% include "_log_tail.html" %}
 </div>
+
+<h2 class="log-search__heading">Search</h2>
+<form class="log-search" hx-get="/logs/search" hx-target="#log-search-results" hx-swap="innerHTML"
+  hx-include="#service-select">
+  <input type="text" name="q" placeholder="Search text or regex&hellip;" class="log-search__input">
+  <label><input type="checkbox" name="regex" value="true"> Regex</label>
+  <label><input type="checkbox" name="case_sensitive" value="true"> Case sensitive</label>
+  <label>Context <input type="number" name="context" value="0" min="0" max="10" class="log-search__context"></label>
+  <button type="submit" class="btn btn--accent">Search</button>
+</form>
+<div id="log-search-results"></div>
 {% endblock %}
