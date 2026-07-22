@@ -623,3 +623,29 @@ button { font-family: inherit; }
 .env-value-form { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start; }
 
 .env-default { color: var(--text-dim); font-style: italic; font-size: 0.85rem; }
+
+/* Real-time telemetry charts (uPlot) */
+
+.metric-grid--charts {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+}
+
+.chart-card h3 {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.5rem;
+  font-weight: 500;
+}
+
+.chart {
+  height: 160px;
+}

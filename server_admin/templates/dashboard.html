@@ -2,7 +2,14 @@
 {% block title %}Dashboard — Server Admin{% endblock %}
 {% block content %}
 <h1>Dashboard</h1>
-<div id="dashboard-telemetry" hx-get="/dashboard/telemetry" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+<div class="metric-grid metric-grid--charts">
+  <div class="chart-card"><h3>CPU %</h3><div id="chart-cpu" class="chart"></div></div>
+  <div class="chart-card"><h3>Memory %</h3><div id="chart-mem" class="chart"></div></div>
+  <div class="chart-card"><h3>Disk %</h3><div id="chart-disk" class="chart"></div></div>
+  <div class="chart-card"><h3>Network Sent</h3><div id="chart-net-send" class="chart"></div></div>
+  <div class="chart-card"><h3>Network Received</h3><div id="chart-net-recv" class="chart"></div></div>
+  <div class="chart-card"><h3>Disk Read</h3><div id="chart-disk-read" class="chart"></div></div>
+  <div class="chart-card"><h3>Disk Write</h3><div id="chart-disk-write" class="chart"></div></div>
+</div>
 <div id="dashboard-gpu" hx-get="/dashboard/gpu" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
-<div id="dashboard-network" hx-get="/dashboard/network" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
 {% endblock %}
