@@ -366,8 +366,8 @@ async def monitor_loop(interval_s: int | None = None) -> None:
     while True:
         try:
             await run_in_threadpool(service_manager.check_and_recover)
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[server-admin] crash monitor loop error: {exc}", file=sys.stderr)
         await asyncio.sleep(interval_s)
 
 
