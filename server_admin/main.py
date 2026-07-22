@@ -14,6 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import config, env_vars
 from .formatting import format_bytes, format_rate, format_uptime, sparkline_points
 from .logs import log_file_path, search_log, tail_log
+from .severity import compute_health
 from .supervisor import SERVICES, monitor_loop, service_manager
 from .telemetry import gpu as gpu_telemetry
 from .telemetry import history
@@ -74,32 +75,6 @@ def is_htmx(request: Request) -> bool:
 def render_error(request: Request, message: str, status_code: int = 200) -> HTMLResponse:
     template = "_error.html" if is_htmx(request) else "error.html"
     return templates.TemplateResponse(request, template, {"message": message}, status_code=status_code)
-
-
-def _percent_severity(percent: float) -> str:
-    if percent >= 90:
-        return "danger"
-    if percent >= 70:
-        return "warn"
-    return "ok"
-
-
-def compute_health(system: dict, gpu: dict) -> str:
-    severities = [
-        _percent_severity(system["cpu_percent"]),
-        _percent_severity(system["mem_percent"]),
-        _percent_severity(system["disk_percent"]),
-    ]
-    if gpu["available"]:
-        for g in gpu["gpus"]:
-            severities.append(_percent_severity(g["utilization_gpu"]))
-            if g["temperature_c"] is not None:
-                severities.append(_percent_severity(g["temperature_c"]))
-    if "danger" in severities:
-        return "danger"
-    if "warn" in severities:
-        return "warn"
-    return "ok"
 
 
 @app.get("/login", response_class=HTMLResponse)
