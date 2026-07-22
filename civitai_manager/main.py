@@ -559,6 +559,7 @@ async def download(
     civitai_url: str = Form(""),
     description: str = Form(""),
     trigger_words: str = Form(""),
+    thumbnail_url: str = Form(""),
 ):
     logger.info("Download-to-folder requested: %s -> %s", download_url, filename)
     try:
@@ -581,6 +582,8 @@ async def download(
     # persisted and later rendered as an <a href> on the Downloads page.
     if civitai_url and not civitai_url.startswith(("http://", "https://")):
         civitai_url = ""
+    if thumbnail_url and not thumbnail_url.startswith(("http://", "https://")):
+        thumbnail_url = ""
     trigger_words_list = [w for w in (w.strip() for w in trigger_words.split(",")) if w]
     metadata = {
         "model_id": model_id or None,
@@ -592,6 +595,7 @@ async def download(
         "description": description or None,
         "trigger_words": trigger_words_list,
         "sha256": sha256 or None,
+        "thumbnail_url": thumbnail_url or None,
     }
     metadata = {k: v for k, v in metadata.items() if v is not None}
     sidecar_target = (Path(config.CIVITAI_DOWNLOAD_DIR) / actual_name).resolve()
@@ -657,6 +661,29 @@ async def downloads_list(request: Request):
         "downloads.html",
         {"files": files, "error": invokeai_error, "active_nav": "downloads"},
     )
+
+
+@app.get("/downloads/{filename}", response_class=HTMLResponse)
+async def download_detail(request: Request, filename: str):
+    download_dir = Path(config.CIVITAI_DOWNLOAD_DIR).resolve()
+    target = (download_dir / filename).resolve()
+    if download_dir not in target.parents or not target.is_file():
+        return render_error(request, "That file could not be found.", status_code=404)
+    metadata = downloads.read_sidecar(target)
+    try:
+        installed_models = await request.app.state.invokeai.list_models()
+        installed = str(target) in {
+            str(Path(m["path"]).resolve()) for m in installed_models if m.get("path")
+        }
+    except httpx.HTTPError:
+        installed = False
+    context = {
+        "request": request,
+        "file": {"name": target.name, "size": target.stat().st_size, "installed": installed},
+        "metadata": metadata,
+        "active_nav": "downloads",
+    }
+    return templates.TemplateResponse(request, "download_detail.html", context)
 
 
 @app.post("/downloads/{filename}/install", response_class=HTMLResponse)

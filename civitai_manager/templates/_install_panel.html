@@ -30,6 +30,7 @@
         <input type="hidden" name="civitai_url" value="{{ civitai_url }}">
         <input type="hidden" name="description" value="{{ model.description or '' }}">
         <input type="hidden" name="trigger_words" value="{{ (active_version.trainedWords or []) | join(',') }}">
+        <input type="hidden" name="thumbnail_url" value="{{ active_version.images[0].url if active_version.images else '' }}">
         <button type="submit" class="btn">Download to folder</button>
       </form>
     </div>
