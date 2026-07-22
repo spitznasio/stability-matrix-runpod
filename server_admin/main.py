@@ -380,7 +380,12 @@ async def environment_clear(request: Request, key: str):
     try:
         await run_in_threadpool(env_vars.clear_value, key)
     except OSError as exc:
-        return render_error(
-            request, f"Applied in memory, but failed to save to disk: {exc}", status_code=500
-        )
+        message = f"Applied in memory, but failed to save to disk: {exc}"
+        if is_htmx(request):
+            import html
+            return HTMLResponse(
+                f'<tr><td colspan="5"><p class="error-banner">{html.escape(message)}</p></td></tr>',
+                status_code=500,
+            )
+        return render_error(request, message, status_code=500)
     return templates.TemplateResponse(request, "_environment_row.html", {"row": _environment_row_context(spec)})
