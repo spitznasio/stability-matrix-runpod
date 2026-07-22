@@ -26,3 +26,4 @@ __pycache__/
 plan-oneDriveSync.prompt.md
 civitai_manager/docs/*
 .playwright-mcp/
+runpod-stability-matrix.code-workspace
