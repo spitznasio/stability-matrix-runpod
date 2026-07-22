@@ -719,6 +719,7 @@ async def installed(request: Request):
         path = m.get("path")
         m["metadata"] = metadata_store.read_sidecar(path) if path else None
         m["path_hash"] = metadata_store.path_hash(path) if path else None
+        m["background_error"] = metadata_store.read_background_error(path) if path else None
     return templates.TemplateResponse(
         request,
         "installed.html",
@@ -727,11 +728,11 @@ async def installed(request: Request):
 
 
 @app.get("/installed/{path_hash}", response_class=HTMLResponse)
-async def installed_detail(request: Request, path_hash: str):
+async def installed_detail(request: Request, path_hash: str, return_to: str = ""):
     try:
         models = await request.app.state.invokeai.list_models()
-    except httpx.HTTPError:
-        return render_error(request, "InvokeAI is not reachable right now.", status_code=502)
+    except httpx.HTTPError as exc:
+        return render_error(request, summarize_upstream_error(exc, "InvokeAI"), status_code=502)
     model = next(
         (m for m in models if m.get("path") and metadata_store.path_hash(m["path"]) == path_hash),
         None,
@@ -744,12 +745,31 @@ async def installed_detail(request: Request, path_hash: str):
         "model": model,
         "metadata": metadata,
         "active_nav": "installed",
+        "path_hash": path_hash,
+        "background_error": metadata_store.read_background_error(model["path"]),
+        "back_url": f"/installed?{unquote(return_to)}" if return_to else "/installed",
         "civitai_url": metadata.get("civitai_url") if metadata else None,
         "commercial_use_display": (
             format_commercial_use(metadata.get("allowCommercialUse")) if metadata else None
         ),
     }
     return templates.TemplateResponse(request, "installed_detail.html", context)
+
+
+@app.post("/installed/{path_hash}/background-error/dismiss", response_class=HTMLResponse)
+async def dismiss_background_error(request: Request, path_hash: str):
+    try:
+        models = await request.app.state.invokeai.list_models()
+    except httpx.HTTPError as exc:
+        return render_error(request, summarize_upstream_error(exc, "InvokeAI"), status_code=502)
+    model = next(
+        (m for m in models if m.get("path") and metadata_store.path_hash(m["path"]) == path_hash),
+        None,
+    )
+    if model is None:
+        return render_error(request, "That installed model could not be found.", status_code=404)
+    metadata_store.clear_background_error(model["path"])
+    return HTMLResponse("")
 
 
 @app.get("/health")

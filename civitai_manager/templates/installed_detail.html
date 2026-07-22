@@ -7,6 +7,13 @@
     Back to installed
   </a>
 
+  {% if background_error %}
+  <div class="error-banner" id="background-error-banner">
+    {{ background_error.message }}
+    <button type="button" class="btn btn--small" hx-post="/installed/{{ path_hash }}/background-error/dismiss" hx-target="#background-error-banner" hx-swap="outerHTML">Dismiss</button>
+  </div>
+  {% endif %}
+
   <div class="detail-head">
     <div class="detail-head__row">
       <h1 class="detail-head__title">{{ (metadata.model_name if metadata else model.get('name')) or "—" }}</h1>
