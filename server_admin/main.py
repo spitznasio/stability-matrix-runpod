@@ -355,12 +355,14 @@ async def environment_save(request: Request, key: str, value: str = Form("")):
         spec = env_vars.get_spec(key)
     except KeyError:
         return render_error(request, f"Unknown environment variable: {key}", status_code=404)
-    try:
-        await run_in_threadpool(env_vars.set_value, key, value)
-    except OSError as exc:
-        return render_error(
-            request, f"Applied in memory, but failed to save to disk: {exc}", status_code=500
-        )
+    skip_write = spec.sensitive and not value and bool(env_vars.current_value(key))
+    if not skip_write:
+        try:
+            await run_in_threadpool(env_vars.set_value, key, value)
+        except OSError as exc:
+            return render_error(
+                request, f"Applied in memory, but failed to save to disk: {exc}", status_code=500
+            )
     return templates.TemplateResponse(request, "_environment_row.html", {"row": _environment_row_context(spec)})
 
 

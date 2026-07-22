@@ -4,8 +4,14 @@
   <td>
     {% if row.editing %}
     <form class="env-value-form" hx-post="/environment/{{ row.spec.key }}" hx-target="closest tr" hx-swap="outerHTML">
+      {% if row.spec.sensitive %}
+      <input class="env-input" type="text" name="value" value=""
+        {% if row.value %}placeholder="value is set — leave blank and Save to keep it unchanged, or type a new value"
+        {% elif row.spec.default %}placeholder="default: {{ row.spec.default }}"{% endif %}>
+      {% else %}
       <input class="env-input" type="text" name="value" value="{{ row.value or '' }}"
         {% if row.spec.default %}placeholder="default: {{ row.spec.default }}"{% endif %}>
+      {% endif %}
       <div class="btn-row">
         <button class="btn btn--accent btn--sm" type="submit">Save</button>
         <button class="btn btn--sm" type="button"
