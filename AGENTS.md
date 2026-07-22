@@ -43,6 +43,7 @@ Start with [CLAUDE.md](CLAUDE.md) for architecture and operational context.
 - All services must be launched via the supervisor (`python3 -m server_admin.supervisor start <key>` in [start.sh](start.sh)), not bare `&` backgrounding, so [server_admin/](server_admin/)'s Services/Logs pages stay accurate.
 - Don't add `--workers >1` to the `uvicorn server_admin.main:app` invocation — [server_admin/telemetry/network.py](server_admin/telemetry/network.py)'s throughput calculation depends on a single worker's `psutil` delta.
 - Don't relax the `/downloads`-page install-time sidecar tracking — Downloads-page installs and direct-`/install`-button installs are separate code paths ([civitai_manager/main.py](civitai_manager/main.py)'s `_track_download_install` and `_track_install_metadata`) that both need to stay wired to [civitai_manager/metadata_store.py](civitai_manager/metadata_store.py).
+- Keep [server_admin/env_vars.py](server_admin/env_vars.py)'s `REGISTRY` as the only editable env var surface — don't let `/environment` grow a path to add arbitrary new keys. If a var's `owner_service` is `None`, don't wire a restart button for it (it's pod-restart-only on purpose — either it's a `SERVER_ADMIN_*` var, or, like `ARIA2_RPC_SECRET`, its owning process only reads it at supervisor-import time).
 
 ## Ports
 
