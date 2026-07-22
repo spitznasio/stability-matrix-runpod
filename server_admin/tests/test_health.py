@@ -56,3 +56,35 @@ async def test_check_once_connect_error_marks_down():
     await health._check_once(client, "civitai-manager", "http://x", 2.0)
 
     assert health.latest()["civitai-manager"]["up"] is False
+
+
+@pytest.mark.asyncio
+async def test_check_once_read_error_marks_down():
+    """Verify that other HTTPError subclasses (beyond TimeoutException/ConnectError)
+    are caught and handled the same way: mark as down with no status/latency."""
+    client = AsyncMock()
+    client.get = AsyncMock(side_effect=httpx.ReadError("connection reset"))
+
+    await health._check_once(client, "invokeai", "http://x", 2.0)
+
+    result = health.latest()["invokeai"]
+    assert result["up"] is False
+    assert result["status_code"] is None
+    assert result["latency_ms"] is None
+
+
+def test_latest_returns_deep_copy():
+    """Verify that latest() returns a deep-enough copy so callers cannot
+    mutate the internal cache by modifying returned values."""
+    # Set up a known state in the cache
+    health._latest["test-service"] = {"up": True, "status_code": 200, "latency_ms": 10.0}
+
+    # Get a copy and mutate it
+    result = health.latest()
+    result["test-service"]["up"] = False
+    result["test-service"]["status_code"] = 500
+
+    # Verify the internal cache is unaffected
+    cached = health._latest["test-service"]
+    assert cached["up"] is True
+    assert cached["status_code"] == 200

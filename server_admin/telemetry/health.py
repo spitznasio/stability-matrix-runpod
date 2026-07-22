@@ -20,7 +20,7 @@ _latest: dict[str, dict] = {}
 
 
 def latest() -> dict:
-    return dict(_latest)
+    return {k: dict(v) for k, v in _latest.items()}
 
 
 async def _check_once(client: httpx.AsyncClient, key: str, url: str, timeout: float) -> None:
@@ -29,7 +29,7 @@ async def _check_once(client: httpx.AsyncClient, key: str, url: str, timeout: fl
         resp = await client.get(url, timeout=timeout)
         elapsed_ms = (time.monotonic() - start) * 1000
         _latest[key] = {"up": resp.status_code < 500, "status_code": resp.status_code, "latency_ms": elapsed_ms}
-    except (httpx.TimeoutException, httpx.ConnectError):
+    except httpx.HTTPError:
         _latest[key] = {"up": False, "status_code": None, "latency_ms": None}
 
 
