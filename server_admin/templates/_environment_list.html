@@ -1,0 +1,19 @@
+{% for category, rows in groups %}
+<h2 class="env-category">{{ category }}</h2>
+<table class="service-table env-table">
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Description</th>
+      <th>Value</th>
+      <th>Apply</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    {% include "_environment_row.html" %}
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}

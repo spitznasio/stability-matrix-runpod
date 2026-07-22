@@ -62,10 +62,11 @@
     }, 2500);
   }
 
-  function initGpuProcessRestart() {
+  function initServiceRestartButtons() {
     document.body.addEventListener("htmx:afterRequest", function (evt) {
       var btn = evt.detail.elt;
-      if (!btn.classList || !btn.classList.contains("gpu-process-restart-btn")) return;
+      if (!btn.classList) return;
+      if (!btn.classList.contains("gpu-process-restart-btn") && !btn.classList.contains("env-restart-btn")) return;
       var name = btn.dataset.serviceName || "service";
       showToast(evt.detail.successful ? "Restarting " + name + "…" : "Failed to restart " + name);
     });
@@ -75,6 +76,6 @@
   document.addEventListener("DOMContentLoaded", function () {
     classifyLogLines();
     initLogFilter();
-    initGpuProcessRestart();
+    initServiceRestartButtons();
   });
 })();

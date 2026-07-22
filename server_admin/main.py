@@ -11,7 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import config
+from . import config, env_vars
 from .formatting import format_bytes, format_rate, format_uptime, sparkline_points
 from .logs import log_file_path, search_log, tail_log
 from .supervisor import SERVICES, monitor_loop, service_manager
@@ -210,6 +210,19 @@ def _service_rows() -> list[dict]:
     return rows
 
 
+def _environment_row_context(spec: env_vars.EnvVarSpec, *, revealed: bool = False, editing: bool = False) -> dict:
+    value = env_vars.current_value(spec.key)
+    display_value = value if (not spec.sensitive or revealed) else env_vars.mask(value)
+    return {
+        "spec": spec,
+        "value": value,
+        "display_value": display_value,
+        "revealed": revealed,
+        "editing": editing,
+        "has_override": env_vars.has_override(spec.key),
+    }
+
+
 @app.get("/services", response_class=HTMLResponse)
 async def services(request: Request):
     return templates.TemplateResponse(request, "services.html", {"active_nav": "services"})
@@ -290,3 +303,89 @@ async def logs_download(request: Request, service_key: str):
     if not path.exists():
         return render_error(request, f"No log file yet for service: {service_key}", status_code=404)
     return FileResponse(path, filename=f"{service_key}.log", media_type="text/plain")
+
+
+@app.get("/environment", response_class=HTMLResponse)
+async def environment_page(request: Request):
+    return templates.TemplateResponse(request, "environment.html", {"active_nav": "environment"})
+
+
+@app.get("/environment/list", response_class=HTMLResponse)
+async def environment_list(request: Request):
+    groups = [
+        (category, [_environment_row_context(spec) for spec in specs]) for category, specs in env_vars.categories()
+    ]
+    return templates.TemplateResponse(request, "_environment_list.html", {"groups": groups})
+
+
+@app.get("/environment/{key}/view", response_class=HTMLResponse)
+async def environment_view(request: Request, key: str):
+    try:
+        spec = env_vars.get_spec(key)
+    except KeyError:
+        return render_error(request, f"Unknown environment variable: {key}", status_code=404)
+    return templates.TemplateResponse(request, "_environment_row.html", {"row": _environment_row_context(spec)})
+
+
+@app.get("/environment/{key}/reveal", response_class=HTMLResponse)
+async def environment_reveal(request: Request, key: str):
+    try:
+        spec = env_vars.get_spec(key)
+    except KeyError:
+        return render_error(request, f"Unknown environment variable: {key}", status_code=404)
+    return templates.TemplateResponse(
+        request, "_environment_row.html", {"row": _environment_row_context(spec, revealed=True)}
+    )
+
+
+@app.get("/environment/{key}/edit", response_class=HTMLResponse)
+async def environment_edit(request: Request, key: str):
+    try:
+        spec = env_vars.get_spec(key)
+    except KeyError:
+        return render_error(request, f"Unknown environment variable: {key}", status_code=404)
+    return templates.TemplateResponse(
+        request, "_environment_row.html", {"row": _environment_row_context(spec, editing=True)}
+    )
+
+
+@app.post("/environment/{key}", response_class=HTMLResponse)
+async def environment_save(request: Request, key: str, value: str = Form("")):
+    try:
+        spec = env_vars.get_spec(key)
+    except KeyError:
+        return render_error(request, f"Unknown environment variable: {key}", status_code=404)
+    skip_write = spec.sensitive and not value and bool(env_vars.current_value(key))
+    if not skip_write:
+        try:
+            await run_in_threadpool(env_vars.set_value, key, value)
+        except OSError as exc:
+            message = f"Applied in memory, but failed to save to disk: {exc}"
+            if is_htmx(request):
+                import html
+                return HTMLResponse(
+                    f'<tr><td colspan="5"><p class="error-banner">{html.escape(message)}</p></td></tr>',
+                    status_code=500,
+                )
+            return render_error(request, message, status_code=500)
+    return templates.TemplateResponse(request, "_environment_row.html", {"row": _environment_row_context(spec)})
+
+
+@app.post("/environment/{key}/clear", response_class=HTMLResponse)
+async def environment_clear(request: Request, key: str):
+    try:
+        spec = env_vars.get_spec(key)
+    except KeyError:
+        return render_error(request, f"Unknown environment variable: {key}", status_code=404)
+    try:
+        await run_in_threadpool(env_vars.clear_value, key)
+    except OSError as exc:
+        message = f"Applied in memory, but failed to save to disk: {exc}"
+        if is_htmx(request):
+            import html
+            return HTMLResponse(
+                f'<tr><td colspan="5"><p class="error-banner">{html.escape(message)}</p></td></tr>',
+                status_code=500,
+            )
+        return render_error(request, message, status_code=500)
+    return templates.TemplateResponse(request, "_environment_row.html", {"row": _environment_row_context(spec)})
