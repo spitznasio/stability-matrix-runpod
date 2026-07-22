@@ -769,7 +769,8 @@ async def dismiss_background_error(request: Request, path_hash: str):
     if model is None:
         return render_error(request, "That installed model could not be found.", status_code=404)
     metadata_store.clear_background_error(model["path"])
-    return HTMLResponse("")
+    toast_module = templates.env.get_template("_toast.html").module
+    return HTMLResponse(str(toast_module.toast("ok", "Dismissed.")))
 
 
 @app.get("/health")

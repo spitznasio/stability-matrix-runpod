@@ -115,9 +115,32 @@
     render();
   }
 
+  // ---- toasts: auto-dismiss any fragment OOB-appended into #toast-region ----
+  function scheduleToastDismiss(toastEl) {
+    setTimeout(function () {
+      toastEl.style.transition = "opacity 200ms ease";
+      toastEl.style.opacity = "0";
+      setTimeout(function () { toastEl.remove(); }, 200);
+    }, 4000);
+  }
+
+  function initToasts() {
+    var region = document.getElementById("toast-region");
+    if (!region || region.dataset.observed) return;
+    region.dataset.observed = "true";
+    new MutationObserver(function (mutations) {
+      mutations.forEach(function (m) {
+        m.addedNodes.forEach(function (node) {
+          if (node.nodeType === 1 && node.classList.contains("toast")) scheduleToastDismiss(node);
+        });
+      });
+    }).observe(region, { childList: true });
+  }
+
   function init() {
     initViewToggles();
     initInstalledTable();
+    initToasts();
   }
 
   document.addEventListener("DOMContentLoaded", init);
