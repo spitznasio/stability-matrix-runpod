@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
@@ -13,8 +13,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import config
 from .formatting import format_bytes, format_rate, format_uptime, sparkline_points
-from .logs import tail_log
-from .supervisor import SERVICES, service_manager
+from .logs import log_file_path, search_log, tail_log
+from .supervisor import SERVICES, monitor_loop, service_manager
+from .telemetry import gpu as gpu_telemetry
 from .telemetry import history
 from .telemetry.gpu import get_gpu_telemetry
 from .telemetry.network import get_network_telemetry
@@ -25,15 +26,20 @@ LOGIN_EXEMPT_PATHS = {"/login", "/health"}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    gpu_telemetry.init_nvml()
     sample_task = asyncio.create_task(history.sample_loop())
+    crash_task = asyncio.create_task(monitor_loop())
     try:
         yield
     finally:
-        sample_task.cancel()
-        try:
-            await sample_task
-        except asyncio.CancelledError:
-            pass
+        for task in (sample_task, crash_task):
+            task.cancel()
+        for task in (sample_task, crash_task):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        gpu_telemetry.shutdown_nvml()
 
 
 class SessionAuthMiddleware(BaseHTTPMiddleware):
@@ -87,7 +93,8 @@ def compute_health(system: dict, gpu: dict) -> str:
     if gpu["available"]:
         for g in gpu["gpus"]:
             severities.append(_percent_severity(g["utilization_gpu"]))
-            severities.append(_percent_severity(g["temperature_c"]))
+            if g["temperature_c"] is not None:
+                severities.append(_percent_severity(g["temperature_c"]))
     if "danger" in severities:
         return "danger"
     if "warn" in severities:
@@ -161,9 +168,13 @@ async def dashboard_telemetry(request: Request):
 
 @app.get("/dashboard/gpu", response_class=HTMLResponse)
 async def dashboard_gpu(request: Request):
-    gpu = get_gpu_telemetry()
+    statuses = await run_in_threadpool(service_manager.all_statuses)
+    pid_to_service = {status.pid: key for key, status in statuses.items() if status.pid is not None}
+    gpu = get_gpu_telemetry(pid_to_service)
     gpu_history = {g["index"]: history.get_gpu_history(g["index"]) for g in gpu["gpus"]}
-    return templates.TemplateResponse(request, "_dashboard_gpu.html", {"gpu": gpu, "gpu_history": gpu_history})
+    return templates.TemplateResponse(
+        request, "_dashboard_gpu.html", {"gpu": gpu, "gpu_history": gpu_history, "services": SERVICES}
+    )
 
 
 @app.get("/dashboard/network", response_class=HTMLResponse)
@@ -182,6 +193,7 @@ def _service_rows() -> list[dict]:
     rows = []
     for key, status in service_manager.all_statuses().items():
         spec = SERVICES[key]
+        usage = service_manager.get(key).resource_usage(status.pid) if status.running and status.pid else None
         rows.append(
             {
                 "key": key,
@@ -189,6 +201,10 @@ def _service_rows() -> list[dict]:
                 "running": status.running,
                 "pid": status.pid,
                 "uptime_s": status.uptime_s,
+                "crashed": status.crashed,
+                "auto_restart": key in config.AUTO_RESTART_SERVICES,
+                "cpu_percent": usage["cpu_percent"] if usage else None,
+                "rss_mb": usage["rss_mb"] if usage else None,
             }
         )
     return rows
@@ -218,21 +234,56 @@ async def services_control(request: Request, key: str, action: str):
 
 
 @app.get("/logs", response_class=HTMLResponse)
-async def logs_page(request: Request, service: str = "invokeai"):
-    lines = tail_log(service, config.LOG_TAIL_LINES)
+async def logs_page(request: Request, service: str = "invokeai", lines: int = config.LOG_TAIL_LINES):
+    lines = min(lines, config.MAX_LOG_TAIL_LINES)
+    log_lines = tail_log(service, lines)
     return templates.TemplateResponse(
         request,
         "logs.html",
-        {"active_nav": "logs", "services": SERVICES, "selected": service, "lines": lines},
+        {"active_nav": "logs", "services": SERVICES, "selected": service, "lines": log_lines, "tail_lines": lines},
     )
 
 
 @app.get("/logs/tail", response_class=HTMLResponse)
-async def logs_tail(request: Request, service: str = "invokeai"):
+async def logs_tail(request: Request, service: str = "invokeai", lines: int = config.LOG_TAIL_LINES):
+    lines = min(lines, config.MAX_LOG_TAIL_LINES)
     try:
-        lines = tail_log(service, config.LOG_TAIL_LINES)
+        log_lines = tail_log(service, lines)
     except KeyError:
         return render_error(request, f"Unknown service: {service}", status_code=404)
     return templates.TemplateResponse(
-        request, "_log_tail.html", {"lines": lines, "selected": service, "services": SERVICES}
+        request, "_log_tail.html", {"lines": log_lines, "selected": service, "services": SERVICES}
     )
+
+
+@app.get("/logs/search", response_class=HTMLResponse)
+async def logs_search(
+    request: Request,
+    service: str = "invokeai",
+    q: str = "",
+    regex: bool = False,
+    case_sensitive: bool = False,
+    context: int = 0,
+):
+    if not q:
+        return templates.TemplateResponse(request, "_log_search_results.html", {"result": None, "query": q})
+    try:
+        result = await run_in_threadpool(
+            search_log, service, q, regex=regex, case_sensitive=case_sensitive, context=max(0, min(context, 10))
+        )
+    except KeyError:
+        return render_error(request, f"Unknown service: {service}", status_code=404)
+    except ValueError as exc:
+        return render_error(request, str(exc), status_code=400)
+    return templates.TemplateResponse(request, "_log_search_results.html", {"result": result, "query": q})
+
+
+@app.get("/logs/download/{service_key}")
+async def logs_download(request: Request, service_key: str):
+    try:
+        path = log_file_path(service_key)
+    except KeyError:
+        return render_error(request, f"Unknown service: {service_key}", status_code=404)
+    if not path.exists():
+        return render_error(request, f"No log file yet for service: {service_key}", status_code=404)
+    return FileResponse(path, filename=f"{service_key}.log", media_type="text/plain")

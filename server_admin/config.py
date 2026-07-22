@@ -12,4 +12,13 @@ AUTH_PASSWORD = os.environ.get("SERVER_ADMIN_PASSWORD")
 SESSION_SECRET = os.environ.get("SERVER_ADMIN_SESSION_SECRET", secrets.token_hex(32))
 
 LOG_TAIL_LINES = int(os.environ.get("SERVER_ADMIN_LOG_TAIL_LINES", "200"))
+MAX_LOG_TAIL_LINES = int(os.environ.get("SERVER_ADMIN_MAX_LOG_TAIL_LINES", "5000"))
 POLL_INTERVAL_S = os.environ.get("SERVER_ADMIN_POLL_INTERVAL_S", "3")
+
+# Comma-separated allowlist of service keys to auto-restart when they crash
+# (i.e. die without having been stopped via the dashboard). Empty by default
+# — auto-restart is opt-in per service, e.g. "invokeai,aria2-rpc".
+AUTO_RESTART_SERVICES = {
+    s.strip() for s in os.environ.get("SERVER_ADMIN_AUTO_RESTART", "").split(",") if s.strip()
+}
+CRASH_MONITOR_INTERVAL_S = int(os.environ.get("SERVER_ADMIN_CRASH_MONITOR_INTERVAL_S", "10"))

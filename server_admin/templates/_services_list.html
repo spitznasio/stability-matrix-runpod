@@ -5,20 +5,31 @@
       <th>Status</th>
       <th>PID</th>
       <th>Uptime</th>
+      <th>CPU</th>
+      <th>RSS</th>
       <th>Actions</th>
     </tr>
   </thead>
   <tbody>
     {% for svc in services %}
     <tr>
-      <td>{{ svc.display_name }}</td>
       <td>
+        {{ svc.display_name }}
+        {% if svc.auto_restart %}<span class="auto-restart-badge" title="Auto-restarts on crash">auto-restart</span>{% endif %}
+      </td>
+      <td>
+        {% if svc.crashed %}
+        <span class="status-pill is-crashed">Crashed</span>
+        {% else %}
         <span class="status-pill {{ 'is-running' if svc.running else 'is-stopped' }}">
           {{ 'Running' if svc.running else 'Stopped' }}
         </span>
+        {% endif %}
       </td>
       <td class="mono">{{ svc.pid if svc.pid else '—' }}</td>
       <td class="mono">{{ svc.uptime_s | format_uptime }}</td>
+      <td class="mono">{{ "%.0f%%"|format(svc.cpu_percent) if svc.cpu_percent is not none else '—' }}</td>
+      <td class="mono">{{ "%.0f MB"|format(svc.rss_mb) if svc.rss_mb is not none else '—' }}</td>
       <td>
         <div class="btn-row">
           <button class="btn btn--accent" {{ 'disabled' if svc.running else '' }}
