@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# Env var overrides saved via Server Admin's Environment page (server_admin/env_vars.py),
+# persisted on the volume disk so they survive pod restarts. Sourced first,
+# before anything else in this script, so every subsequent export and
+# service launch sees them. `set -a` auto-exports every var assigned while
+# sourcing, so the file itself doesn't need "export" prefixes.
+ENV_OVERRIDES_FILE="/workspace/server-admin/env-overrides.env"
+if [ -f "$ENV_OVERRIDES_FILE" ]; then
+    set -a
+    source "$ENV_OVERRIDES_FILE"
+    set +a
+fi
+
 mkdir -p /workspace/invokeai
 mkdir -p /workspace/civitai-downloads
 
