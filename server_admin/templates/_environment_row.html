@@ -1,0 +1,46 @@
+<tr id="env-row-{{ row.spec.key }}">
+  <td class="mono">{{ row.spec.key }}</td>
+  <td>{{ row.spec.description }}</td>
+  <td>
+    {% if row.editing %}
+    <form class="env-value-form" hx-post="/environment/{{ row.spec.key }}" hx-target="closest tr" hx-swap="outerHTML">
+      <input class="env-input" type="text" name="value" value="{{ row.value or '' }}"
+        {% if row.spec.default %}placeholder="default: {{ row.spec.default }}"{% endif %}>
+      <div class="btn-row">
+        <button class="btn btn--accent btn--sm" type="submit">Save</button>
+        <button class="btn btn--sm" type="button"
+          hx-get="/environment/{{ row.spec.key }}/view" hx-target="closest tr" hx-swap="outerHTML">Cancel</button>
+      </div>
+    </form>
+    {% elif row.value %}
+    <span class="mono">{{ row.display_value }}</span>
+    {% if row.spec.sensitive %}
+      {% if row.revealed %}
+      <button class="btn btn--sm" hx-get="/environment/{{ row.spec.key }}/view" hx-target="closest tr" hx-swap="outerHTML">Hide</button>
+      {% else %}
+      <button class="btn btn--sm" hx-get="/environment/{{ row.spec.key }}/reveal" hx-target="closest tr" hx-swap="outerHTML">Reveal</button>
+      {% endif %}
+    {% endif %}
+    {% else %}
+    <span class="env-default">unset{% if row.spec.default %} (default: {{ row.spec.default }}){% endif %}</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if row.spec.owner_service %}
+    <button class="btn btn--sm env-restart-btn" data-service-name="{{ row.spec.owner_service }}"
+      hx-post="/services/{{ row.spec.owner_service }}/restart" hx-swap="none">Restart to apply</button>
+    {% else %}
+    <span class="env-default">Applies after next pod restart</span>
+    {% endif %}
+  </td>
+  <td>
+    <div class="btn-row">
+      {% if not row.editing %}
+      <button class="btn btn--sm" hx-get="/environment/{{ row.spec.key }}/edit" hx-target="closest tr" hx-swap="outerHTML">Edit</button>
+      {% endif %}
+      {% if row.has_override %}
+      <button class="btn btn--sm btn--danger" hx-post="/environment/{{ row.spec.key }}/clear" hx-target="closest tr" hx-swap="outerHTML">Clear override</button>
+      {% endif %}
+    </div>
+  </td>
+</tr>
