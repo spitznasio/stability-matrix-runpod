@@ -159,6 +159,9 @@ async def _track_install_metadata(app: FastAPI, job_id: str, model_id: int, vers
             "Failed to fetch CivitAI model %s for metadata capture after install",
             model_id, exc_info=True,
         )
+        metadata_store.write_background_error(
+            installed_path, "Couldn't fetch CivitAI details after install — metadata is missing on this model's page."
+        )
         return
     metadata_store.write_sidecar(installed_path, _build_sidecar_metadata(model, version_id))
     logger.info(
@@ -197,6 +200,11 @@ async def _track_download_install(
     if job is None:
         return
 
+    # Computed once, up front, so both follow-ups below can attach a
+    # background error to the right model even if the metadata-capture
+    # follow-up never runs (e.g. no civitai_model_id was passed).
+    installed_path = _extract_installed_path(job)
+
     config_out = job.get("config_out") if isinstance(job.get("config_out"), dict) else None
     model_key = config_out.get("key") if config_out else None
     reapply = {k: v for k, v in {"trigger_phrases": trigger_words, "source_url": civitai_url}.items() if v}
@@ -209,10 +217,13 @@ async def _track_download_install(
                 "Failed to re-apply %s on model %s after download-install",
                 list(reapply), model_key, exc_info=True,
             )
+            if installed_path:
+                metadata_store.write_background_error(
+                    installed_path, "Trigger words/source link may not have saved to InvokeAI."
+                )
 
     if not (civitai_model_id and civitai_version_id):
         return
-    installed_path = _extract_installed_path(job)
     if not installed_path:
         logger.warning(
             "Download-install job %s completed but no installed path found in job payload; "
@@ -225,6 +236,9 @@ async def _track_download_install(
         logger.warning(
             "Failed to fetch CivitAI model %s for metadata capture after download-install",
             civitai_model_id, exc_info=True,
+        )
+        metadata_store.write_background_error(
+            installed_path, "Couldn't fetch CivitAI details after install — metadata is missing on this model's page."
         )
         return
     metadata_store.write_sidecar(installed_path, _build_sidecar_metadata(model, civitai_version_id))
