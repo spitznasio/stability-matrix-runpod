@@ -152,7 +152,6 @@ async def dashboard_stream(request: Request):
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
             # RunPod's reverse proxy buffers responses by default — without
             # this header the stream appears dead until the buffer flushes.
             # This is the most likely "works locally, silently broken on the
