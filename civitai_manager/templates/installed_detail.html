@@ -54,7 +54,7 @@
          real Browse tabs have, since switching here has nothing to show. #}
       <div class="version-tabs">
         {% for v in metadata.versions %}
-        <span class="version-tab version-tab--static{{ ' is-active' if v.id == metadata.installed_version_id else '' }}">{{ v.name }}{{ ' (installed)' if v.id == metadata.installed_version_id else '' }}</span>
+        <span class="version-tab version-tab--static{{ ' is-active' if v.id == metadata.installed_version_id else '' }}" title="Only the installed version has details captured">{{ v.name }}{{ ' (installed)' if v.id == metadata.installed_version_id else '' }}</span>
         {% endfor %}
       </div>
       {% endif %}

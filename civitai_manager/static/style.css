@@ -322,9 +322,10 @@ select.field {
 
 .version-tab:hover { border-color: var(--border-strong); color: var(--text); }
 .version-tab.is-active { background: var(--accent-grad); border-color: transparent; color: #fff; }
-.version-tab--static { cursor: default; }
-.version-tab--static:hover { border-color: var(--border); color: var(--text-muted); }
-.version-tab--static.is-active:hover { border-color: transparent; color: #fff; }
+.version-tab--static { cursor: default; opacity: 0.7; }
+.version-tab--static:hover { border-color: var(--border); color: var(--text-muted); opacity: 0.7; }
+.version-tab--static.is-active,
+.version-tab--static.is-active:hover { opacity: 1; border-color: transparent; color: #fff; }
 
 /* Loading states: htmx adds .htmx-request to whichever element issued the
    request for its duration — no hx-indicator elements needed for any case
