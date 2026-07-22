@@ -72,10 +72,23 @@
     });
   }
 
+  function initTelemetryStream() {
+    if (!document.getElementById("chart-cpu")) return; // only on the dashboard page
+    window.charts.init();
+    var es = new EventSource("/dashboard/stream");
+    es.addEventListener("snapshot", function (evt) {
+      window.charts.loadAll(JSON.parse(evt.data));
+    });
+    es.addEventListener("tick", function (evt) {
+      window.charts.updateAll(JSON.parse(evt.data));
+    });
+  }
+
   document.body.addEventListener("htmx:afterSwap", classifyLogLines);
   document.addEventListener("DOMContentLoaded", function () {
     classifyLogLines();
     initLogFilter();
     initServiceRestartButtons();
+    initTelemetryStream();
   });
 })();
