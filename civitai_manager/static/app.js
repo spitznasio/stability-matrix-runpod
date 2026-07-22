@@ -66,6 +66,23 @@
     var total = rows.length;
     var sort = { key: "name", dir: 1 };
 
+    (function restoreFromUrl() {
+      var params = new URLSearchParams(location.search);
+      if (params.has("filter")) filterInput.value = params.get("filter");
+      if (params.has("type")) typeSelect.value = params.get("type");
+      if (params.has("sort")) sort.key = params.get("sort");
+      if (params.has("dir")) sort.dir = parseInt(params.get("dir"), 10) || 1;
+    })();
+
+    function currentQuery() {
+      var params = new URLSearchParams();
+      if (filterInput.value) params.set("filter", filterInput.value);
+      if (typeSelect.value) params.set("type", typeSelect.value);
+      params.set("sort", sort.key);
+      params.set("dir", sort.dir);
+      return params.toString();
+    }
+
     function render() {
       var filterText = filterInput.value.toLowerCase();
       var typeFilter = typeSelect.value;
@@ -99,6 +116,14 @@
         var svg = btn.querySelector("svg");
         if (svg) svg.classList.toggle("is-desc", isActive && sort.dir === -1);
       });
+
+      var query = currentQuery();
+      history.replaceState(null, "", query ? "?" + query : location.pathname);
+      var returnTo = "?return_to=" + encodeURIComponent(query);
+      rows.forEach(function (r) {
+        r.card.href = "/installed/" + r.card.dataset.pathHash + returnTo;
+        r.row.dataset.rowHref = "/installed/" + r.row.dataset.pathHash + returnTo;
+      });
     }
 
     var filterDebounce;
@@ -116,7 +141,7 @@
       });
     });
 
-    render();
+    render();  // also applies any filter/type/sort restored from the URL above
   }
 
   // ---- toasts: auto-dismiss any fragment OOB-appended into #toast-region ----
