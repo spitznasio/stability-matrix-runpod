@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 LOGIN_EXEMPT_PATHS = {"/login", "/health"}
 
 TERMINAL_STATUSES = {"completed", "error", "cancelled"}
+MAX_STATUS_POLL_ERRORS = 5
 
 # CivitAI has no published enum for this — curated to the base models that
 # actually show up most often in search results today.
@@ -501,18 +502,29 @@ async def install(
 
 
 @app.get("/install/{job_id}/status", response_class=HTMLResponse)
-async def install_status(request: Request, job_id: str):
+async def install_status(request: Request, job_id: str, error_streak: int = 0):
     try:
         job = await request.app.state.invokeai.get_install_job(job_id)
-    except httpx.HTTPError:
-        logger.warning("Lost contact with InvokeAI polling install job %s", job_id, exc_info=True)
-        return render_error(request, "Lost contact with InvokeAI while checking install status.")
+    except httpx.HTTPError as exc:
+        error_streak += 1
+        logger.warning(
+            "Lost contact with InvokeAI polling install job %s (streak=%s)", job_id, error_streak, exc_info=True
+        )
+        return templates.TemplateResponse(
+            request, "_install_status.html",
+            {
+                "job": {"id": job_id, "status": "unknown"},
+                "terminal": False,
+                "poll_error": summarize_upstream_error(exc, "InvokeAI"),
+                "error_streak": error_streak,
+                "can_retry": error_streak >= MAX_STATUS_POLL_ERRORS,
+            },
+        )
     if job.get("status") in TERMINAL_STATUSES:
         logger.info("Install job %s reached terminal status %s", job_id, job.get("status"))
     return templates.TemplateResponse(
-        request,
-        "_install_status.html",
-        {"job": job, "terminal": job.get("status") in TERMINAL_STATUSES},
+        request, "_install_status.html",
+        {"job": job, "terminal": job.get("status") in TERMINAL_STATUSES, "poll_error": None, "error_streak": 0, "can_retry": False},
     )
 
 
@@ -582,19 +594,30 @@ async def download(
 
 
 @app.get("/download/{gid}/status", response_class=HTMLResponse)
-async def download_status(request: Request, gid: str):
+async def download_status(request: Request, gid: str, error_streak: int = 0):
     try:
         job = await request.app.state.aria2.tell_status(gid)
-    except httpx.HTTPError:
-        logger.warning("Lost contact with aria2 polling gid=%s", gid, exc_info=True)
-        return render_error(request, "Lost contact with the download daemon while checking status.")
+    except httpx.HTTPError as exc:
+        error_streak += 1
+        logger.warning(
+            "Lost contact with aria2 polling gid=%s (streak=%s)", gid, error_streak, exc_info=True
+        )
+        return templates.TemplateResponse(
+            request, "_download_status.html",
+            {
+                "job": {"gid": gid, "status": "unknown"},
+                "terminal": False,
+                "poll_error": summarize_upstream_error(exc, "the download daemon"),
+                "error_streak": error_streak,
+                "can_retry": error_streak >= MAX_STATUS_POLL_ERRORS,
+            },
+        )
     if job.get("status") in ARIA2_TERMINAL_STATUSES:
         logger.info("Download gid=%s reached terminal status %s", gid, job.get("status"))
         await request.app.state.aria2.cleanup_control_file(gid)
     return templates.TemplateResponse(
-        request,
-        "_download_status.html",
-        {"job": job, "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES},
+        request, "_download_status.html",
+        {"job": job, "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES, "poll_error": None, "error_streak": 0, "can_retry": False},
     )
 
 

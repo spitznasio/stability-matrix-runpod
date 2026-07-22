@@ -1,8 +1,8 @@
 <div
   id="download-job-{{ job.get('gid', 'pending') }}"
   class="install-status"
-  {% if not terminal %}
-  hx-get="/download/{{ job.get('gid') }}/status"
+  {% if not terminal and not can_retry %}
+  hx-get="/download/{{ job.get('gid') }}/status{% if error_streak %}?error_streak={{ error_streak }}{% endif %}"
   hx-trigger="load delay:2s, every 2s [document.visibilityState=='visible']"
   hx-swap="outerHTML"
   {% endif %}
@@ -10,6 +10,12 @@
   <span class="install-status__line">Download: {{ job.get('status', 'pending') }}</span>
   {% if job.get('completedLength') and job.get('totalLength') %}
   <span class="install-status__bytes">{{ job.completedLength }} / {{ job.totalLength }} bytes{% if job.get('downloadSpeed') %} &middot; {{ (job.downloadSpeed | int // 1024) }} KB/s{% endif %}</span>
+  {% endif %}
+  {% if poll_error %}
+  <span class="install-status__poll-error">{{ poll_error }}</span>
+  {% if can_retry %}
+  <button type="button" class="btn btn--small" hx-get="/download/{{ job.get('gid') }}/status" hx-target="closest .install-status" hx-swap="outerHTML">Retry</button>
+  {% endif %}
   {% endif %}
   {% if terminal and job.get('status') == 'complete' %}
   <span class="stamp stamp--ok stamp--thunk">DOWNLOADED</span>

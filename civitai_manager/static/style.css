@@ -448,6 +448,8 @@ select.field {
 
 .install-status { margin-top: 0.5rem; display: flex; align-items: center; gap: 0.75rem; font-family: var(--font-mono); font-size: 0.82rem; flex-wrap: wrap; }
 .install-status__bytes { color: var(--text-dim); }
+.install-status__poll-error { color: var(--danger); }
+.install-status__slow-hint { color: var(--text-dim); font-style: italic; }
 
 .stamp {
   display: inline-block; font-family: var(--font-mono); font-size: 0.65rem; line-height: 1.3; text-transform: uppercase;
