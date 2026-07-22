@@ -236,7 +236,10 @@ async def services_control(request: Request, key: str, action: str):
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_page(request: Request, service: str = "invokeai", lines: int = config.LOG_TAIL_LINES):
     lines = min(lines, config.MAX_LOG_TAIL_LINES)
-    log_lines = tail_log(service, lines)
+    try:
+        log_lines = tail_log(service, lines)
+    except KeyError:
+        return render_error(request, f"Unknown service: {service}", status_code=404)
     return templates.TemplateResponse(
         request,
         "logs.html",
