@@ -317,7 +317,11 @@ def _read_overrides() -> dict[str, str]:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, raw_value = line.partition("=")
-        parts = shlex.split(raw_value)
+        try:
+            parts = shlex.split(raw_value)
+        except ValueError:
+            # Malformed line (e.g. unmatched quotes) — ignore rather than crashing the UI.
+            continue
         overrides[key] = parts[0] if parts else ""
     return overrides
 
