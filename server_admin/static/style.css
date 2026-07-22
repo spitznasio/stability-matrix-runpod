@@ -627,25 +627,29 @@ button { font-family: inherit; }
 /* Real-time telemetry charts (uPlot) */
 
 .metric-grid--charts {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 1.25rem;
 }
 
 .chart-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 1rem 1.25rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .chart-card h3 {
-  font-size: 0.78rem;
-  color: var(--text-dim);
+  font-size: 0.85rem;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin: 0 0 0.5rem;
-  font-weight: 500;
+  margin: 0 0 1rem;
+  font-weight: 600;
 }
 
 .chart {
-  height: 160px;
+  height: 200px;
+  flex: 1;
 }
