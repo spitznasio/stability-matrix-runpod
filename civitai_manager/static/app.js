@@ -101,7 +101,11 @@
       });
     }
 
-    filterInput.addEventListener("input", render);
+    var filterDebounce;
+    filterInput.addEventListener("input", function () {
+      clearTimeout(filterDebounce);
+      filterDebounce = setTimeout(render, 150);
+    });
     typeSelect.addEventListener("change", render);
     sortButtons.forEach(function (btn) {
       btn.addEventListener("click", function () {
