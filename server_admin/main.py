@@ -1,10 +1,11 @@
 import asyncio
+import json
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
@@ -16,10 +17,8 @@ from .formatting import format_bytes, format_rate, format_uptime, sparkline_poin
 from .logs import log_file_path, search_log, tail_log
 from .severity import compute_health
 from .supervisor import SERVICES, monitor_loop, service_manager
-from .telemetry import gpu as gpu_telemetry
-from .telemetry import history
+from .telemetry import broadcast, gpu as gpu_telemetry, health as health_telemetry, history
 from .telemetry.gpu import get_gpu_telemetry
-from .telemetry.network import get_network_telemetry
 from .telemetry.system import get_system_telemetry
 
 LOGIN_EXEMPT_PATHS = {"/login", "/health"}
@@ -28,14 +27,15 @@ LOGIN_EXEMPT_PATHS = {"/login", "/health"}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     gpu_telemetry.init_nvml()
-    sample_task = asyncio.create_task(history.sample_loop())
+    producer_task = asyncio.create_task(broadcast.producer_loop())
+    health_task = asyncio.create_task(health_telemetry.health_loop())
     crash_task = asyncio.create_task(monitor_loop())
     try:
         yield
     finally:
-        for task in (sample_task, crash_task):
+        for task in (producer_task, health_task, crash_task):
             task.cancel()
-        for task in (sample_task, crash_task):
+        for task in (producer_task, health_task, crash_task):
             try:
                 await task
             except asyncio.CancelledError:
@@ -129,15 +129,36 @@ async def dashboard(request: Request):
     return templates.TemplateResponse(request, "dashboard.html", {"active_nav": "dashboard"})
 
 
-@app.get("/dashboard/telemetry", response_class=HTMLResponse)
-async def dashboard_telemetry(request: Request):
-    system = await run_in_threadpool(get_system_telemetry)
-    cpu_history = history.get_history("cpu_percent")
-    mem_history = history.get_history("mem_percent")
-    return templates.TemplateResponse(
-        request,
-        "_dashboard_telemetry.html",
-        {"system": system, "cpu_history": cpu_history, "mem_history": mem_history},
+def _sse_event(event: str, data) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+@app.get("/dashboard/stream")
+async def dashboard_stream(request: Request):
+    async def event_gen():
+        q = broadcast.subscribe()
+        try:
+            yield _sse_event("snapshot", history.get_full_snapshot())
+            while True:
+                if await request.is_disconnected():
+                    break
+                payload = await q.get()
+                yield _sse_event(payload["type"], payload["data"])
+        finally:
+            broadcast.unsubscribe(q)
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            # RunPod's reverse proxy buffers responses by default — without
+            # this header the stream appears dead until the buffer flushes.
+            # This is the most likely "works locally, silently broken on the
+            # pod" failure mode for this feature.
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
@@ -149,18 +170,6 @@ async def dashboard_gpu(request: Request):
     gpu_history = {g["index"]: history.get_gpu_history(g["index"]) for g in gpu["gpus"]}
     return templates.TemplateResponse(
         request, "_dashboard_gpu.html", {"gpu": gpu, "gpu_history": gpu_history, "services": SERVICES}
-    )
-
-
-@app.get("/dashboard/network", response_class=HTMLResponse)
-async def dashboard_network(request: Request):
-    network = get_network_telemetry()
-    send_history = history.get_history("net_send_bps")
-    recv_history = history.get_history("net_recv_bps")
-    return templates.TemplateResponse(
-        request,
-        "_dashboard_network.html",
-        {"network": network, "send_history": send_history, "recv_history": recv_history},
     )
 
 
