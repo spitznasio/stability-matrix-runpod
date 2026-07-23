@@ -54,11 +54,7 @@
         <div class="stat-list">
           <div class="stat-row"><span class="stat-row__label">Size</span><span class="stat-row__value">{{ "%.2f"|format(file.size / (1024*1024*1024)) }} GB</span></div>
           <div class="stat-row"><span class="stat-row__label">Base model</span><span class="stat-row__value">{{ metadata.base_model if metadata else "—" }}</span></div>
-          <div class="stat-row"><span class="stat-row__label">Status</span><span class="stat-row__value">{{ "Installed"
-            if file.installed is true
-            else "Not installed"
-            if file.installed is false
-            else "Unknown" }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Status</span><span class="stat-row__value">{% if file.installed %}Installed{% elif file.installed is false %}Not installed{% else %}Unknown{% endif %}</span></div>
         </div>
       </div>
       {% if file.invokeai_error %}
