@@ -685,7 +685,7 @@ async def download_detail(request: Request, filename: str):
             "name": target.name,
             "size": target.stat().st_size,
             "installed": installed,
-            "install_status_error": invokeai_error,
+            "invokeai_error": invokeai_error,
         },
         "metadata": metadata,
         "active_nav": "downloads",
