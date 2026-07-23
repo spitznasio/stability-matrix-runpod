@@ -1,0 +1,65 @@
+<div
+  id="active-downloads"
+  {% if active %}
+  hx-get="/downloads/active?known_gids={{ known_gids }}"
+  hx-trigger="load delay:3s, every 3s"
+  hx-swap="outerHTML"
+  {% endif %}
+>
+{% if active %}
+<table class="installed-table active-downloads-table">
+  <thead>
+    <tr>
+      <th></th>
+      <th>Name</th>
+      <th>Progress</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in active %}
+    {% set m = row.metadata or {} %}
+    <tr>
+      <td>
+        {% if m.thumbnail_url %}
+        <img class="results-table__thumb" src="{{ m.thumbnail_url }}" alt="" loading="lazy">
+        {% else %}
+        <span class="results-table__thumb results-table__thumb--empty"></span>
+        {% endif %}
+      </td>
+      <td>
+        {{ row.filename }}
+        {% if m.model_name %}<div class="download-row__model">{{ m.model_name }}{% if m.model_type %} &middot; {{ m.model_type }}{% endif %}</div>{% endif %}
+      </td>
+      <td class="active-downloads__progress-cell">
+        {% if row.verifying %}
+        <div class="progress-bar">
+          <div class="progress-bar__fill" style="width: {{ row.verify_pct if row.verify_pct is not none else 0 }}%;"></div>
+        </div>
+        <span class="install-status__bytes">{% if row.verify_pct is not none %}{{ row.verify_pct }}% verified{% endif %}</span>
+        {% else %}
+        <div class="progress-bar">
+          <div class="progress-bar__fill" style="width: {{ row.progress_pct if row.progress_pct is not none else 0 }}%;"></div>
+        </div>
+        <span class="install-status__bytes">
+          {% if row.progress_pct is not none %}{{ row.progress_pct }}%{% endif %}
+          {% if row.job.get('downloadSpeed') %} &middot; {{ (row.job.downloadSpeed | int // 1024) }} KB/s{% endif %}
+        </span>
+        {% endif %}
+      </td>
+      <td>
+        {% if row.verifying %}
+        <span class="stamp">VERIFYING CHECKSUM</span>
+        {% else %}
+        <span class="stamp">DOWNLOADING</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+</div>
+{% if refresh_table %}
+{% with oob = true %}{% include "_downloads_table.html" %}{% endwith %}
+{% endif %}

@@ -53,11 +53,18 @@ BASE_MODEL_CHOICES = [
 INSTALL_METADATA_POLL_SECONDS = 2.0
 INSTALL_METADATA_MAX_POLL_SECONDS = 1800.0  # give up after 30 minutes of polling
 
+# Checkpoints can be tens of GB over a slow link, so downloads get a much
+# longer poll ceiling than installs.
+DOWNLOAD_TRACK_POLL_SECONDS = 2.0
+DOWNLOAD_TRACK_MAX_POLL_SECONDS = 6 * 3600.0  # give up after 6 hours of polling
+
 # asyncio.create_task() does not keep a strong reference to the task itself —
 # if nothing else holds one, the task can be garbage-collected mid-await
 # (e.g. during the poll loop's asyncio.sleep), silently aborting it. Keep
 # background install-tracking tasks alive here until they finish.
 _background_install_tasks: set[asyncio.Task] = set()
+# Same reasoning, for the background aria2-tracking tasks started below.
+_background_download_tasks: set[asyncio.Task] = set()
 
 
 def _build_sidecar_metadata(model: dict, version_id: int) -> dict:
@@ -248,12 +255,82 @@ async def _track_download_install(
     )
 
 
+def _download_progress(job: dict) -> dict:
+    completed = int(job.get("completedLength") or 0)
+    total = int(job.get("totalLength") or 0)
+    verified = int(job.get("verifiedLength") or 0)
+    # aria2 keeps a checksummed job in "active" status while it hashes the
+    # completed file — completedLength/downloadSpeed alone make that phase
+    # look identically stalled to a genuine stuck transfer, so surface
+    # verifiedLength (only meaningful once verifying) as its own progress bar.
+    verifying = bool(total) and completed >= total and job.get("status") not in ARIA2_TERMINAL_STATUSES
+    return {
+        "progress_pct": round(completed / total * 100, 1) if total else None,
+        "verifying": verifying,
+        "verify_pct": round(verified / total * 100, 1) if verifying and total else None,
+    }
+
+
+async def _track_download(app: FastAPI, gid: str) -> None:
+    # Runs independently of any client connection, same rationale as
+    # _wait_for_completed_job above — without this, a download's terminal
+    # status (and the aria2 control-file cleanup that depends on it) was only
+    # ever discovered by the one browser tab polling GET /download/{gid}/status,
+    # so navigating away left the file invisible on the Downloads page
+    # (list_downloaded_files() hides anything with a `.aria2` control file
+    # next to it) until someone happened to reopen that exact status view.
+    aria2: Aria2Client = app.state.aria2
+    active: dict[str, dict] = app.state.active_downloads
+    max_attempts = int(DOWNLOAD_TRACK_MAX_POLL_SECONDS / DOWNLOAD_TRACK_POLL_SECONDS)
+    for _ in range(max_attempts):
+        try:
+            job = await aria2.tell_status(gid)
+        except httpx.HTTPError:
+            logger.warning("Lost contact with aria2 tracking download gid=%s", gid, exc_info=True)
+            active.pop(gid, None)
+            return
+        if gid in active:
+            active[gid]["job"] = job
+        if job.get("status") in ARIA2_TERMINAL_STATUSES:
+            logger.info("Download gid=%s reached terminal status %s (background tracker)", gid, job.get("status"))
+            await aria2.cleanup_control_file(gid)
+            active.pop(gid, None)
+            return
+        await asyncio.sleep(DOWNLOAD_TRACK_POLL_SECONDS)
+    logger.warning(
+        "Download gid=%s did not reach a terminal status within %s seconds; giving up tracking",
+        gid, DOWNLOAD_TRACK_MAX_POLL_SECONDS,
+    )
+    active.pop(gid, None)
+
+
+def _active_downloads_view(app: FastAPI) -> list[dict]:
+    rows = []
+    for gid, entry in app.state.active_downloads.items():
+        job = entry.get("job", {})
+        rows.append({
+            "gid": gid,
+            "filename": entry.get("filename"),
+            "metadata": entry.get("metadata") or {},
+            "job": job,
+            "queued_at": entry.get("queued_at"),
+            **_download_progress(job),
+        })
+    rows.sort(key=lambda r: r["queued_at"] or datetime.min.replace(tzinfo=timezone.utc))
+    return rows
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("civitai_manager starting up")
     app.state.civitai = CivitAIClient()
     app.state.invokeai = InvokeAIClient()
     app.state.aria2 = Aria2Client()
+    # gid -> {filename, metadata, queued_at, job}; populated by POST /download,
+    # kept fresh by _track_download, and read by the Downloads page so
+    # in-flight downloads are visible even after the page that started them
+    # has been closed.
+    app.state.active_downloads = {}
     try:
         yield
     finally:
@@ -606,11 +683,25 @@ async def download(
         logger.debug("Sidecar written to %s with keys: %s", sidecar_target, list(metadata.keys()))
     if job.get("status") in ARIA2_TERMINAL_STATUSES:
         await request.app.state.aria2.cleanup_control_file(gid)
+    else:
+        request.app.state.active_downloads[gid] = {
+            "filename": actual_name,
+            "metadata": metadata,
+            "queued_at": datetime.now(timezone.utc),
+            "job": job,
+        }
+        task = asyncio.create_task(_track_download(request.app, gid))
+        _background_download_tasks.add(task)
+        task.add_done_callback(_background_download_tasks.discard)
     logger.info("Download gid=%s queued for %s (status=%s)", gid, filename, job.get("status"))
     return templates.TemplateResponse(
         request,
         "_download_status.html",
-        {"job": job, "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES},
+        {
+            "job": job,
+            "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES,
+            **_download_progress(job),
+        },
     )
 
 
@@ -633,12 +724,23 @@ async def download_status(request: Request, gid: str, error_streak: int = 0):
                 "can_retry": error_streak >= MAX_STATUS_POLL_ERRORS,
             },
         )
+    active = request.app.state.active_downloads
     if job.get("status") in ARIA2_TERMINAL_STATUSES:
         logger.info("Download gid=%s reached terminal status %s", gid, job.get("status"))
         await request.app.state.aria2.cleanup_control_file(gid)
+        active.pop(gid, None)
+    elif gid in active:
+        active[gid]["job"] = job
     return templates.TemplateResponse(
         request, "_download_status.html",
-        {"job": job, "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES, "poll_error": None, "error_streak": 0, "can_retry": False},
+        {
+            "job": job,
+            "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES,
+            "poll_error": None,
+            "error_streak": 0,
+            "can_retry": False,
+            **_download_progress(job),
+        },
     )
 
 
@@ -659,8 +761,40 @@ async def downloads_list(request: Request):
     return templates.TemplateResponse(
         request,
         "downloads.html",
-        {"files": files, "error": invokeai_error, "active_nav": "downloads"},
+        {
+            "files": files,
+            "error": invokeai_error,
+            "active_nav": "downloads",
+            "active": _active_downloads_view(request.app),
+        },
     )
+
+
+@app.get("/downloads/active", response_class=HTMLResponse)
+async def downloads_active(request: Request, known_gids: str = ""):
+    active = _active_downloads_view(request.app)
+    current_gids = {row["gid"] for row in active}
+    previously_known = {g for g in known_gids.split(",") if g}
+    # A gid the client was watching that has since dropped out of the active
+    # registry just finished (or errored out) — refresh the completed-files
+    # table too, since that's the only signal this fragment has that
+    # something new belongs there now.
+    finished = bool(previously_known - current_gids)
+    context = {"active": active, "known_gids": ",".join(sorted(current_gids))}
+    if finished:
+        files = downloads.list_downloaded_files(Path(config.CIVITAI_DOWNLOAD_DIR))
+        try:
+            installed_models = await request.app.state.invokeai.list_models()
+            installed_paths = {
+                str(Path(m["path"]).resolve()) for m in installed_models if m.get("path")
+            }
+        except httpx.HTTPError:
+            installed_paths = set()
+        for f in files:
+            f["installed"] = str(f["path"].resolve()) in installed_paths
+        context["files"] = files
+        context["refresh_table"] = True
+    return templates.TemplateResponse(request, "_active_downloads.html", context)
 
 
 @app.get("/downloads/{filename}", response_class=HTMLResponse)

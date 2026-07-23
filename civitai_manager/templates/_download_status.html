@@ -7,9 +7,23 @@
   hx-swap="outerHTML"
   {% endif %}
 >
-  <span class="install-status__line">Download: {{ job.get('status', 'pending') }}</span>
+  <span class="install-status__line">Download: {% if verifying %}verifying checksum{% else %}{{ job.get('status', 'pending') }}{% endif %}</span>
+  {% if verifying %}
+  <div class="progress-bar">
+    <div class="progress-bar__fill" style="width: {{ verify_pct if verify_pct is not none else 0 }}%;"></div>
+  </div>
+  <span class="install-status__bytes">{% if verify_pct is not none %}{{ verify_pct }}% verified{% endif %}</span>
+  {% else %}
+  {% if progress_pct is not none %}
+  <div class="progress-bar">
+    <div class="progress-bar__fill" style="width: {{ progress_pct }}%;"></div>
+  </div>
+  {% endif %}
   {% if job.get('completedLength') and job.get('totalLength') %}
-  <span class="install-status__bytes">{{ job.completedLength }} / {{ job.totalLength }} bytes{% if job.get('downloadSpeed') %} &middot; {{ (job.downloadSpeed | int // 1024) }} KB/s{% endif %}</span>
+  <span class="install-status__bytes">
+    {% if progress_pct is not none %}{{ progress_pct }}% &middot; {% endif %}{{ job.completedLength }} / {{ job.totalLength }} bytes{% if job.get('downloadSpeed') %} &middot; {{ (job.downloadSpeed | int // 1024) }} KB/s{% endif %}
+  </span>
+  {% endif %}
   {% endif %}
   {% if poll_error %}
   <span class="install-status__poll-error">{{ poll_error }}</span>
