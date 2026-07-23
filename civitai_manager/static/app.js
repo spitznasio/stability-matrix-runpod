@@ -70,8 +70,12 @@
       var params = new URLSearchParams(location.search);
       if (params.has("filter")) filterInput.value = params.get("filter");
       if (params.has("type")) typeSelect.value = params.get("type");
-      if (params.has("sort")) sort.key = params.get("sort");
-      if (params.has("dir")) sort.dir = parseInt(params.get("dir"), 10) || 1;
+
+      var allowedSortKeys = Array.prototype.map.call(sortButtons, function (b) { return b.dataset.sortKey; });
+      var sortKey = params.get("sort");
+      if (sortKey && allowedSortKeys.indexOf(sortKey) !== -1) sort.key = sortKey;
+
+      sort.dir = params.get("dir") === "-1" ? -1 : 1;
     })();
 
     function currentQuery() {
