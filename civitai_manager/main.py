@@ -788,17 +788,12 @@ async def installed_detail(request: Request, path_hash: str, return_to: str = ""
 
 @app.post("/installed/{path_hash}/background-error/dismiss", response_class=HTMLResponse)
 async def dismiss_background_error(request: Request, path_hash: str):
+    error_path = Path(config.CIVITAI_METADATA_DIR) / f"{path_hash}.error.json"
     try:
-        models = await request.app.state.invokeai.list_models()
-    except httpx.HTTPError as exc:
-        return render_error(request, summarize_upstream_error(exc, "InvokeAI"), status_code=502)
-    model = next(
-        (m for m in models if m.get("path") and metadata_store.path_hash(m["path"]) == path_hash),
-        None,
-    )
-    if model is None:
-        return render_error(request, "That installed model could not be found.", status_code=404)
-    metadata_store.clear_background_error(model["path"])
+        error_path.unlink(missing_ok=True)
+    except OSError:
+        logger.warning("Failed to clear background error %s", error_path, exc_info=True)
+        return render_error(request, "Could not dismiss the sync issue right now.", status_code=500)
     toast_module = templates.env.get_template("_toast.html").module
     return HTMLResponse(str(toast_module.toast("ok", "Dismissed.")))
 
