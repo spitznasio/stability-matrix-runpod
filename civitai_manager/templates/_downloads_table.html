@@ -1,0 +1,55 @@
+<div id="downloads-table"{% if oob %} hx-swap-oob="true"{% endif %}>
+{% if files %}
+<table class="installed-table">
+  <thead>
+    <tr>
+      <th></th>
+      <th>Name</th>
+      <th>Size</th>
+      <th>Base model</th>
+      <th>Trigger words</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in files %}
+    {% set m = f.metadata or {} %}
+    <tr>
+      <td>
+        {% if m.thumbnail_url %}
+        <img class="results-table__thumb" src="{{ m.thumbnail_url }}" alt="" loading="lazy">
+        {% else %}
+        <span class="results-table__thumb results-table__thumb--empty"></span>
+        {% endif %}
+      </td>
+      <td>
+        <a class="download-row__link" href="/downloads/{{ f.name | urlencode }}">{{ f.name }}</a>
+        {% if m.model_name %}<div class="download-row__model">{{ m.model_name }}{% if m.model_type %} &middot; {{ m.model_type }}{% endif %}</div>{% endif %}
+        {% if m.civitai_url %}<a class="civitai-link" href="{{ m.civitai_url }}" target="_blank" rel="noopener">View on CivitAI</a>{% endif %}
+      </td>
+      <td>{{ "%.2f"|format(f.size / (1024*1024*1024)) }} GB</td>
+      <td>{{ m.base_model or "—" }}</td>
+      <td>
+        {% if m.trigger_words %}
+          {% for w in m.trigger_words %}<span class="chip">{{ w }}</span>{% endfor %}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        <div class="status-messages" id="status-messages-{{ loop.index }}">
+          {% if f.installed %}
+          <span class="stamp stamp--ok">INSTALLED</span>
+          {% else %}
+          <form hx-post="/downloads/{{ f.name | urlencode }}/install" hx-target="#status-messages-{{ loop.index }}" hx-swap="innerHTML">
+            <button type="submit" class="btn btn--accent">Install</button>
+          </form>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No downloaded files yet — use "Download to folder" on a model's page.</p>
+{% endif %}
+</div>

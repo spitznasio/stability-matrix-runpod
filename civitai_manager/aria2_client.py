@@ -79,7 +79,14 @@ class Aria2Client:
             return str(response.url)
 
     async def tell_status(self, gid: str) -> dict:
-        keys = ["gid", "status", "completedLength", "totalLength", "downloadSpeed", "errorCode", "errorMessage", "files"]
+        # verifiedLength only appears once aria2 starts hashing a checksummed
+        # download post-transfer (see checksum option in add_download) — it's
+        # the only signal that a "100% bytes, 0 KB/s" job is still working,
+        # not stalled.
+        keys = [
+            "gid", "status", "completedLength", "totalLength", "downloadSpeed",
+            "verifiedLength", "errorCode", "errorMessage", "files",
+        ]
         return await self._call("aria2.tellStatus", [gid, keys])
 
     async def remove(self, gid: str) -> None:

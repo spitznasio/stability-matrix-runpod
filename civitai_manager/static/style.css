@@ -474,6 +474,13 @@ form.htmx-request .btn { opacity: 0.6; pointer-events: none; }
 .install-status__poll-error { color: var(--danger); }
 .install-status__slow-hint { color: var(--text-dim); font-style: italic; }
 
+.progress-bar { width: 160px; height: 0.5rem; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; flex-shrink: 0; }
+.progress-bar__fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s ease-out; }
+
+.active-downloads-table { margin-bottom: 1.5rem; }
+.active-downloads__progress-cell { display: flex; flex-direction: column; gap: 0.3rem; }
+.active-downloads__progress-cell .progress-bar { width: 100%; }
+
 .stamp {
   display: inline-block; font-family: var(--font-mono); font-size: 0.65rem; line-height: 1.3; text-transform: uppercase;
   letter-spacing: 0.04em; border: 1px solid var(--ok); color: var(--ok); padding: 0.25rem 0.5rem; border-radius: 3px;
