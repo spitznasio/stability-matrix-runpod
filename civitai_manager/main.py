@@ -306,7 +306,7 @@ async def _track_download(app: FastAPI, gid: str) -> None:
 
 def _active_downloads_view(app: FastAPI) -> list[dict]:
     rows = []
-    for gid, entry in app.state.active_downloads.items():
+    for gid, entry in list(app.state.active_downloads.items()):
         job = entry.get("job", {})
         rows.append({
             "gid": gid,
