@@ -1,5 +1,6 @@
 <a class="card installed-card" href="/installed/{{ model.path_hash }}"
    data-installed-row
+   data-path-hash="{{ model.path_hash }}"
    data-name="{{ model.get('name', '—') }}"
    data-type="{{ model.get('type', '—') }}"
    data-base="{{ model.get('base', '—') }}"
@@ -12,6 +13,9 @@
       <div class="card__thumb--empty">NO PREVIEW</div>
     {% endif %}
     <span class="stamp installed-card__badge">INSTALLED</span>
+    {% if model.background_error %}
+    <span class="stamp stamp--danger installed-card__badge installed-card__badge--error" title="{{ model.background_error.message }}">SYNC ISSUE</span>
+    {% endif %}
   </div>
   <div class="card__body">
     <div class="card__name">{{ model.get('name', '—') }}</div>

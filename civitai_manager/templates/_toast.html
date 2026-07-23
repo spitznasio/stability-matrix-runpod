@@ -1,0 +1,3 @@
+{% macro toast(kind, message) %}
+<div class="toast toast--{{ kind }}" hx-swap-oob="beforeend:#toast-region">{{ message }}</div>
+{% endmacro %}

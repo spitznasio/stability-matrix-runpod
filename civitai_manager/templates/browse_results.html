@@ -1,5 +1,9 @@
 <div id="results">
   <div class="results__toolbar">
+    {% if has_active_filters %}
+    <a class="chip chip--clear" href="/browse"
+       hx-get="/browse" hx-target="#results" hx-swap="outerHTML" hx-push-url="true">Clear filters &times;</a>
+    {% endif %}
     <span class="refresh-link"
        hx-get="/browse?q={{ q }}&types={{ types }}&base_model={{ base_model }}&sort={{ sort }}&period={{ period }}&nsfw={{ nsfw }}&cursor={{ cursor }}&prev={{ prev_param }}&refresh=1"
        hx-target="#results" hx-swap="outerHTML" hx-push-url="false">

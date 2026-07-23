@@ -1,3 +1,6 @@
+{% if error %}
+<p class="empty">{{ error }} <button type="button" class="btn btn--small" hx-get="{{ retry_url }}" hx-target="closest .gallery" hx-swap="innerHTML">Retry</button></p>
+{% else %}
 {% for image in images[:24] %}
 <button type="button" class="thumb"
   data-url="{{ image.url }}"
@@ -12,3 +15,4 @@
   {% if image.meta %}<span class="thumb__badge">i</span>{% endif %}
 </button>
 {% endfor %}
+{% endif %}

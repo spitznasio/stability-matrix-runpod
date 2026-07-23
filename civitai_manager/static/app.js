@@ -66,6 +66,27 @@
     var total = rows.length;
     var sort = { key: "name", dir: 1 };
 
+    (function restoreFromUrl() {
+      var params = new URLSearchParams(location.search);
+      if (params.has("filter")) filterInput.value = params.get("filter");
+      if (params.has("type")) typeSelect.value = params.get("type");
+
+      var allowedSortKeys = Array.prototype.map.call(sortButtons, function (b) { return b.dataset.sortKey; });
+      var sortKey = params.get("sort");
+      if (sortKey && allowedSortKeys.indexOf(sortKey) !== -1) sort.key = sortKey;
+
+      sort.dir = params.get("dir") === "-1" ? -1 : 1;
+    })();
+
+    function currentQuery() {
+      var params = new URLSearchParams();
+      if (filterInput.value) params.set("filter", filterInput.value);
+      if (typeSelect.value) params.set("type", typeSelect.value);
+      params.set("sort", sort.key);
+      params.set("dir", sort.dir);
+      return params.toString();
+    }
+
     function render() {
       var filterText = filterInput.value.toLowerCase();
       var typeFilter = typeSelect.value;
@@ -99,9 +120,21 @@
         var svg = btn.querySelector("svg");
         if (svg) svg.classList.toggle("is-desc", isActive && sort.dir === -1);
       });
+
+      var query = currentQuery();
+      history.replaceState(null, "", query ? "?" + query : location.pathname);
+      var returnTo = "?return_to=" + encodeURIComponent(query);
+      rows.forEach(function (r) {
+        r.card.href = "/installed/" + r.card.dataset.pathHash + returnTo;
+        r.row.dataset.rowHref = "/installed/" + r.row.dataset.pathHash + returnTo;
+      });
     }
 
-    filterInput.addEventListener("input", render);
+    var filterDebounce;
+    filterInput.addEventListener("input", function () {
+      clearTimeout(filterDebounce);
+      filterDebounce = setTimeout(render, 150);
+    });
     typeSelect.addEventListener("change", render);
     sortButtons.forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -112,12 +145,60 @@
       });
     });
 
-    render();
+    render();  // also applies any filter/type/sort restored from the URL above
   }
+
+  // ---- toasts: auto-dismiss any fragment OOB-appended into #toast-region ----
+  function scheduleToastDismiss(toastEl) {
+    setTimeout(function () {
+      toastEl.style.transition = "opacity 200ms ease";
+      toastEl.style.opacity = "0";
+      setTimeout(function () { toastEl.remove(); }, 200);
+    }, 4000);
+  }
+
+  function initToasts() {
+    var region = document.getElementById("toast-region");
+    if (!region || region.dataset.observed) return;
+    region.dataset.observed = "true";
+    new MutationObserver(function (mutations) {
+      mutations.forEach(function (m) {
+        m.addedNodes.forEach(function (node) {
+          if (node.nodeType === 1 && node.classList.contains("toast")) scheduleToastDismiss(node);
+        });
+      });
+    }).observe(region, { childList: true });
+  }
+
+  // ---- slow-job hint: nudge if an install/download status fragment has
+  // been polling for a while. Tracked client-side, keyed by the fragment's
+  // element id, which is stable across every outerHTML poll swap. ----
+  var jobStartTimes = {};
+  var SLOW_JOB_MS = 5 * 60 * 1000;
+
+  function tickSlowJobHints() {
+    document.querySelectorAll(".install-status[id]").forEach(function (el) {
+      if (!el.hasAttribute("hx-get")) {
+        delete jobStartTimes[el.id];
+        return;
+      }
+      if (!(el.id in jobStartTimes)) jobStartTimes[el.id] = Date.now();
+      var elapsed = Date.now() - jobStartTimes[el.id];
+      if (elapsed > SLOW_JOB_MS && !el.querySelector(".install-status__slow-hint")) {
+        var hint = document.createElement("span");
+        hint.className = "install-status__slow-hint";
+        hint.textContent = "still going — this is taking longer than usual";
+        el.appendChild(hint);
+      }
+    });
+  }
+
+  setInterval(tickSlowJobHints, 15000);
 
   function init() {
     initViewToggles();
     initInstalledTable();
+    initToasts();
   }
 
   document.addEventListener("DOMContentLoaded", init);

@@ -274,6 +274,9 @@ select.field {
 .results-table__name { font-weight: 500; }
 .results-table__creator { color: var(--text-muted); }
 .results-table__downloads { font-family: var(--font-mono); color: var(--text-dim); }
+.results-table__thumb--empty { display: inline-block; border: 1px solid var(--border); }
+.download-row__link { font-weight: 500; }
+.download-row__model { font-size: 0.78rem; color: var(--text-dim); margin-top: 0.15rem; }
 
 .pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.5rem; font-family: var(--font-mono); font-size: 0.85rem; }
 .pager__link { color: var(--accent-text); }
@@ -319,9 +322,27 @@ select.field {
 
 .version-tab:hover { border-color: var(--border-strong); color: var(--text); }
 .version-tab.is-active { background: var(--accent-grad); border-color: transparent; color: #fff; }
-.version-tab--static { cursor: default; }
-.version-tab--static:hover { border-color: var(--border); color: var(--text-muted); }
-.version-tab--static.is-active:hover { border-color: transparent; color: #fff; }
+.version-tab--static { cursor: default; opacity: 0.7; }
+.version-tab--static:hover { border-color: var(--border); color: var(--text-muted); opacity: 0.7; }
+.version-tab--static.is-active,
+.version-tab--static.is-active:hover { opacity: 1; border-color: transparent; color: #fff; }
+
+/* Loading states: htmx adds .htmx-request to whichever element issued the
+   request for its duration — no hx-indicator elements needed for any case
+   in this app (forms, version-tab anchors, self-triggering gallery divs). */
+form.htmx-request .btn { opacity: 0.6; pointer-events: none; }
+.version-tab.htmx-request { opacity: 0.55; }
+
+.gallery.htmx-request { min-height: 120px; position: relative; }
+.gallery.htmx-request::before {
+  content: ""; position: absolute; inset: 0; border-radius: 5px;
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 37%, var(--surface) 63%);
+  background-size: 400% 100%; animation: shimmer 1.4s ease infinite;
+}
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .gallery.htmx-request::before { animation: none; }
+}
 
 .main-pane { min-width: 0; }
 
@@ -437,6 +458,8 @@ select.field {
 
 .lightbox__chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: auto; }
 .chip { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); border: 1px solid var(--border); border-radius: 3px; padding: 0.2rem 0.5rem; }
+.chip--clear { cursor: pointer; color: var(--danger); border-color: var(--danger); }
+.chip--clear:hover { background: rgba(250, 82, 82, 0.12); }
 .lightbox__empty { color: var(--text-dim); font-size: 0.85rem; }
 
 @media (max-width: 640px) {
@@ -448,6 +471,8 @@ select.field {
 
 .install-status { margin-top: 0.5rem; display: flex; align-items: center; gap: 0.75rem; font-family: var(--font-mono); font-size: 0.82rem; flex-wrap: wrap; }
 .install-status__bytes { color: var(--text-dim); }
+.install-status__poll-error { color: var(--danger); }
+.install-status__slow-hint { color: var(--text-dim); font-style: italic; }
 
 .stamp {
   display: inline-block; font-family: var(--font-mono); font-size: 0.65rem; line-height: 1.3; text-transform: uppercase;
@@ -502,4 +527,18 @@ select.field {
 .card.installed-card:hover, .card.installed-card:focus-visible { border-color: var(--accent-text); }
 .card__thumb { position: relative; }
 .installed-card__badge { position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(0, 0, 0, 0.55); }
+.installed-card__badge--error { right: auto; left: 0.5rem; }
+.error-banner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.1rem; }
+
+#toast-region { position: fixed; right: 1.25rem; bottom: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 50; }
+.toast {
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-left: 3px solid var(--ok);
+  color: var(--text); padding: 0.65rem 0.9rem; border-radius: 5px; font-size: 0.85rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); max-width: 320px;
+}
+.toast--danger { border-left-color: var(--danger); }
+@media (prefers-reduced-motion: no-preference) {
+  .toast { animation: toast-in 160ms ease-out; }
+}
+@keyframes toast-in { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .installed-card__version { font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-text); }

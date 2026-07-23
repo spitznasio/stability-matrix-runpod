@@ -10,6 +10,7 @@
 <table class="installed-table">
   <thead>
     <tr>
+      <th></th>
       <th>Name</th>
       <th>Size</th>
       <th>Base model</th>
@@ -22,7 +23,14 @@
     {% set m = f.metadata or {} %}
     <tr>
       <td>
-        {{ f.name }}
+        {% if m.thumbnail_url %}
+        <img class="results-table__thumb" src="{{ m.thumbnail_url }}" alt="" loading="lazy">
+        {% else %}
+        <span class="results-table__thumb results-table__thumb--empty"></span>
+        {% endif %}
+      </td>
+      <td>
+        <a class="download-row__link" href="/downloads/{{ f.name | urlencode }}">{{ f.name }}</a>
         {% if m.model_name %}<div class="download-row__model">{{ m.model_name }}{% if m.model_type %} &middot; {{ m.model_type }}{% endif %}</div>{% endif %}
         {% if m.civitai_url %}<a class="civitai-link" href="{{ m.civitai_url }}" target="_blank" rel="noopener">View on CivitAI</a>{% endif %}
       </td>

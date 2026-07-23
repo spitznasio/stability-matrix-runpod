@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ (metadata.model_name if metadata else None) or file.name }} — CivitAI Manager{% endblock %}
+{% block content %}
+<div class="detail-shell">
+  <a class="back-link" href="/downloads">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    Back to downloads
+  </a>
+
+  <div class="detail-head">
+    <div class="detail-head__row">
+      <h1 class="detail-head__title">{{ (metadata.model_name if metadata else None) or file.name }}</h1>
+      {% if metadata and metadata.civitai_url %}
+      <a class="civitai-link" href="{{ metadata.civitai_url }}" target="_blank" rel="noopener">
+        View on CivitAI
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+      </a>
+      {% endif %}
+    </div>
+    <div class="tag-row">
+      {% if metadata and metadata.model_type %}<span class="tag tag--type">{{ metadata.model_type }}</span>{% endif %}
+      {% if file.installed %}<span class="stamp stamp--ok">INSTALLED</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <div class="main-pane">
+      {% if metadata and metadata.description %}
+      {# sanitized in CivitAIClient.get_model (bleach allowlist) before this was captured to the sidecar #}
+      <div class="desc is-collapsed" id="download-desc">{{ metadata.description | safe }}</div>
+      <button type="button" class="desc-toggle" onclick="var el=document.getElementById('download-desc'); var collapsed=el.classList.toggle('is-collapsed'); this.textContent = collapsed ? 'Show more' : 'Show less';">Show more</button>
+      {% endif %}
+
+      {% if metadata and metadata.trigger_words %}
+      <p class="trigger-words">
+        {% for w in metadata.trigger_words %}<code>{{ w }}</code>{% endfor %}
+      </p>
+      {% endif %}
+
+      {% if metadata and metadata.model_id and metadata.version_id %}
+      <div class="gallery" id="gallery-{{ metadata.version_id }}"
+           hx-get="/models/{{ metadata.model_id }}/versions/{{ metadata.version_id }}/gallery"
+           hx-trigger="load" hx-swap="innerHTML"></div>
+      {% endif %}
+
+      {% if not metadata %}
+      <p class="empty">No CivitAI metadata available for this file — it may have been placed in the folder manually rather than downloaded through CivitAI Manager.</p>
+      {% endif %}
+    </div>
+
+    <aside class="sidebar">
+      <div class="panel">
+        <div class="panel__heading">File</div>
+        <div class="stat-list">
+          <div class="stat-row"><span class="stat-row__label">Size</span><span class="stat-row__value">{{ "%.2f"|format(file.size / (1024*1024*1024)) }} GB</span></div>
+          <div class="stat-row"><span class="stat-row__label">Base model</span><span class="stat-row__value">{{ metadata.base_model if metadata else "—" }}</span></div>
+          <div class="stat-row"><span class="stat-row__label">Status</span><span class="stat-row__value">{% if file.installed %}Installed{% elif file.installed is false %}Not installed{% else %}Unknown{% endif %}</span></div>
+        </div>
+      </div>
+      {% if file.invokeai_error %}
+      <div class="panel">
+        <p class="empty">{{ file.invokeai_error }}</p>
+      </div>
+      {% endif %}
+      {% if file.installed is false %}
+      <div class="panel">
+        <div class="status-messages" id="status-messages-detail"></div>
+        <form hx-post="/downloads/{{ file.name | urlencode }}/install" hx-target="#status-messages-detail" hx-swap="innerHTML">
+          <button type="submit" class="btn btn--accent" style="width:100%;">Install</button>
+        </form>
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}

@@ -18,6 +18,7 @@ from . import config, downloads, metadata_store
 from .aria2_client import Aria2Client
 from .aria2_client import TERMINAL_STATUSES as ARIA2_TERMINAL_STATUSES
 from .civitai_client import CivitAIClient
+from .errors import summarize_upstream_error
 from .formatting import format_commercial_use
 from .invokeai_client import InvokeAIClient
 from .sanitize import html_to_text
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 LOGIN_EXEMPT_PATHS = {"/login", "/health"}
 
 TERMINAL_STATUSES = {"completed", "error", "cancelled"}
+MAX_STATUS_POLL_ERRORS = 5
 
 # CivitAI has no published enum for this — curated to the base models that
 # actually show up most often in search results today.
@@ -157,6 +159,9 @@ async def _track_install_metadata(app: FastAPI, job_id: str, model_id: int, vers
             "Failed to fetch CivitAI model %s for metadata capture after install",
             model_id, exc_info=True,
         )
+        metadata_store.write_background_error(
+            installed_path, "Couldn't fetch CivitAI details after install — metadata is missing on this model's page."
+        )
         return
     metadata_store.write_sidecar(installed_path, _build_sidecar_metadata(model, version_id))
     logger.info(
@@ -195,6 +200,11 @@ async def _track_download_install(
     if job is None:
         return
 
+    # Computed once, up front, so both follow-ups below can attach a
+    # background error to the right model even if the metadata-capture
+    # follow-up never runs (e.g. no civitai_model_id was passed).
+    installed_path = _extract_installed_path(job)
+
     config_out = job.get("config_out") if isinstance(job.get("config_out"), dict) else None
     model_key = config_out.get("key") if config_out else None
     reapply = {k: v for k, v in {"trigger_phrases": trigger_words, "source_url": civitai_url}.items() if v}
@@ -207,10 +217,13 @@ async def _track_download_install(
                 "Failed to re-apply %s on model %s after download-install",
                 list(reapply), model_key, exc_info=True,
             )
+            if installed_path:
+                metadata_store.write_background_error(
+                    installed_path, "Trigger words/source link may not have saved to InvokeAI."
+                )
 
     if not (civitai_model_id and civitai_version_id):
         return
-    installed_path = _extract_installed_path(job)
     if not installed_path:
         logger.warning(
             "Download-install job %s completed but no installed path found in job payload; "
@@ -223,6 +236,9 @@ async def _track_download_install(
         logger.warning(
             "Failed to fetch CivitAI model %s for metadata capture after download-install",
             civitai_model_id, exc_info=True,
+        )
+        metadata_store.write_background_error(
+            installed_path, "Couldn't fetch CivitAI details after install — metadata is missing on this model's page."
         )
         return
     metadata_store.write_sidecar(installed_path, _build_sidecar_metadata(model, civitai_version_id))
@@ -338,7 +354,7 @@ async def httpx_error_handler(request: Request, exc: httpx.HTTPError) -> HTMLRes
             message += f" ({detail})"
         message += " — this is on CivitAI's end, not the app. Try again in a few minutes."
         return render_error(request, message, status_code=502)
-    return render_error(request, f"Upstream request failed: {exc}", status_code=502)
+    return render_error(request, summarize_upstream_error(exc, "CivitAI"), status_code=502)
 
 
 @app.get("/")
@@ -411,6 +427,9 @@ async def browse(
         "prev_param": ",".join(prev_stack[:-1]),
         "next_prev_param": ",".join([*prev_stack, cursor or "_root_"]),
         "return_to": return_to,
+        "has_active_filters": bool(
+            q or type_list or base_model or sort != "Most Downloaded" or period != "AllTime" or nsfw == "false"
+        ),
     }
     template = "browse_results.html" if is_htmx(request) else "browse.html"
     return templates.TemplateResponse(request, template, context)
@@ -456,9 +475,18 @@ async def version_gallery(request: Request, model_id: int, version_id: int, refr
     # dozens of versions (one extra request per version).
     try:
         images = await request.app.state.civitai.get_version_images(version_id, refresh=refresh)
-    except httpx.HTTPError:
-        images = []
-    return templates.TemplateResponse(request, "_gallery.html", {"images": images})
+    except httpx.HTTPError as exc:
+        logger.warning(
+            "Failed to load gallery for model_id=%s version_id=%s", model_id, version_id, exc_info=True
+        )
+        return templates.TemplateResponse(
+            request, "_gallery.html",
+            {
+                "images": [], "error": summarize_upstream_error(exc, "CivitAI"),
+                "retry_url": f"/models/{model_id}/versions/{version_id}/gallery",
+            },
+        )
+    return templates.TemplateResponse(request, "_gallery.html", {"images": images, "error": None})
 
 
 @app.post("/install", response_class=HTMLResponse)
@@ -473,12 +501,9 @@ async def install(
         job = await request.app.state.invokeai.install_model(
             download_url, config.CIVITAI_API_TOKEN
         )
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
         logger.warning("Install request rejected by InvokeAI for %s", download_url, exc_info=True)
-        return render_error(
-            request,
-            "InvokeAI is not ready yet, or the install request was rejected — try again shortly.",
-        )
+        return render_error(request, summarize_upstream_error(exc, "InvokeAI"))
     logger.info("Install job %s started for %s (status=%s)", job.get("id"), download_url, job.get("status"))
     if job.get("id") and model_id and version_id:
         task = asyncio.create_task(
@@ -494,18 +519,29 @@ async def install(
 
 
 @app.get("/install/{job_id}/status", response_class=HTMLResponse)
-async def install_status(request: Request, job_id: str):
+async def install_status(request: Request, job_id: str, error_streak: int = 0):
     try:
         job = await request.app.state.invokeai.get_install_job(job_id)
-    except httpx.HTTPError:
-        logger.warning("Lost contact with InvokeAI polling install job %s", job_id, exc_info=True)
-        return render_error(request, "Lost contact with InvokeAI while checking install status.")
+    except httpx.HTTPError as exc:
+        error_streak += 1
+        logger.warning(
+            "Lost contact with InvokeAI polling install job %s (streak=%s)", job_id, error_streak, exc_info=True
+        )
+        return templates.TemplateResponse(
+            request, "_install_status.html",
+            {
+                "job": {"id": job_id, "status": "unknown"},
+                "terminal": False,
+                "poll_error": summarize_upstream_error(exc, "InvokeAI"),
+                "error_streak": error_streak,
+                "can_retry": error_streak >= MAX_STATUS_POLL_ERRORS,
+            },
+        )
     if job.get("status") in TERMINAL_STATUSES:
         logger.info("Install job %s reached terminal status %s", job_id, job.get("status"))
     return templates.TemplateResponse(
-        request,
-        "_install_status.html",
-        {"job": job, "terminal": job.get("status") in TERMINAL_STATUSES},
+        request, "_install_status.html",
+        {"job": job, "terminal": job.get("status") in TERMINAL_STATUSES, "poll_error": None, "error_streak": 0, "can_retry": False},
     )
 
 
@@ -523,17 +559,15 @@ async def download(
     civitai_url: str = Form(""),
     description: str = Form(""),
     trigger_words: str = Form(""),
+    thumbnail_url: str = Form(""),
 ):
     logger.info("Download-to-folder requested: %s -> %s", download_url, filename)
     try:
         gid = await request.app.state.aria2.add_download(download_url, filename, sha256 or None)
         job = await request.app.state.aria2.tell_status(gid)
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
         logger.warning("aria2 daemon unreachable queueing download for %s", filename, exc_info=True)
-        return render_error(
-            request,
-            "The download daemon is not reachable right now — try again shortly.",
-        )
+        return render_error(request, summarize_upstream_error(exc, "the download daemon"))
     # aria2 sanitizes `filename` down to a bare basename before writing the
     # file (see aria2_client._sanitize_filename) — the sidecar must be keyed
     # off the actual on-disk name reported in the job, or it won't be found
@@ -548,6 +582,8 @@ async def download(
     # persisted and later rendered as an <a href> on the Downloads page.
     if civitai_url and not civitai_url.startswith(("http://", "https://")):
         civitai_url = ""
+    if thumbnail_url and not thumbnail_url.startswith(("http://", "https://")):
+        thumbnail_url = ""
     trigger_words_list = [w for w in (w.strip() for w in trigger_words.split(",")) if w]
     metadata = {
         "model_id": model_id or None,
@@ -559,6 +595,7 @@ async def download(
         "description": description or None,
         "trigger_words": trigger_words_list,
         "sha256": sha256 or None,
+        "thumbnail_url": thumbnail_url or None,
     }
     metadata = {k: v for k, v in metadata.items() if v is not None}
     sidecar_target = (Path(config.CIVITAI_DOWNLOAD_DIR) / actual_name).resolve()
@@ -578,19 +615,30 @@ async def download(
 
 
 @app.get("/download/{gid}/status", response_class=HTMLResponse)
-async def download_status(request: Request, gid: str):
+async def download_status(request: Request, gid: str, error_streak: int = 0):
     try:
         job = await request.app.state.aria2.tell_status(gid)
-    except httpx.HTTPError:
-        logger.warning("Lost contact with aria2 polling gid=%s", gid, exc_info=True)
-        return render_error(request, "Lost contact with the download daemon while checking status.")
+    except httpx.HTTPError as exc:
+        error_streak += 1
+        logger.warning(
+            "Lost contact with aria2 polling gid=%s (streak=%s)", gid, error_streak, exc_info=True
+        )
+        return templates.TemplateResponse(
+            request, "_download_status.html",
+            {
+                "job": {"gid": gid, "status": "unknown"},
+                "terminal": False,
+                "poll_error": summarize_upstream_error(exc, "the download daemon"),
+                "error_streak": error_streak,
+                "can_retry": error_streak >= MAX_STATUS_POLL_ERRORS,
+            },
+        )
     if job.get("status") in ARIA2_TERMINAL_STATUSES:
         logger.info("Download gid=%s reached terminal status %s", gid, job.get("status"))
         await request.app.state.aria2.cleanup_control_file(gid)
     return templates.TemplateResponse(
-        request,
-        "_download_status.html",
-        {"job": job, "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES},
+        request, "_download_status.html",
+        {"job": job, "terminal": job.get("status") in ARIA2_TERMINAL_STATUSES, "poll_error": None, "error_streak": 0, "can_retry": False},
     )
 
 
@@ -613,6 +661,36 @@ async def downloads_list(request: Request):
         "downloads.html",
         {"files": files, "error": invokeai_error, "active_nav": "downloads"},
     )
+
+
+@app.get("/downloads/{filename}", response_class=HTMLResponse)
+async def download_detail(request: Request, filename: str):
+    download_dir = Path(config.CIVITAI_DOWNLOAD_DIR).resolve()
+    target = (download_dir / filename).resolve()
+    if download_dir not in target.parents or not target.is_file():
+        return render_error(request, "That file could not be found.", status_code=404)
+    metadata = downloads.read_sidecar(target)
+    try:
+        installed_models = await request.app.state.invokeai.list_models()
+        installed = str(target) in {
+            str(Path(m["path"]).resolve()) for m in installed_models if m.get("path")
+        }
+        invokeai_error = None
+    except httpx.HTTPError:
+        installed = None
+        invokeai_error = "InvokeAI is not reachable right now — install status is unknown."
+    context = {
+        "request": request,
+        "file": {
+            "name": target.name,
+            "size": target.stat().st_size,
+            "installed": installed,
+            "invokeai_error": invokeai_error,
+        },
+        "metadata": metadata,
+        "active_nav": "downloads",
+    }
+    return templates.TemplateResponse(request, "download_detail.html", context)
 
 
 @app.post("/downloads/{filename}/install", response_class=HTMLResponse)
@@ -638,12 +716,9 @@ async def downloads_install(request: Request, filename: str):
         job = await request.app.state.invokeai.install_model(
             str(target), config.CIVITAI_API_TOKEN, inplace=True, config=install_config
         )
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
         logger.warning("Install request rejected by InvokeAI for %s", target, exc_info=True)
-        return render_error(
-            request,
-            "InvokeAI is not ready yet, or the install request was rejected — try again shortly.",
-        )
+        return render_error(request, summarize_upstream_error(exc, "InvokeAI"))
     logger.info("Install job %s started for %s (status=%s)", job.get("id"), target, job.get("status"))
     if job.get("id"):
         raw_model_id = metadata.get("model_id")
@@ -681,6 +756,7 @@ async def installed(request: Request):
         path = m.get("path")
         m["metadata"] = metadata_store.read_sidecar(path) if path else None
         m["path_hash"] = metadata_store.path_hash(path) if path else None
+        m["background_error"] = metadata_store.read_background_error(path) if path else None
     return templates.TemplateResponse(
         request,
         "installed.html",
@@ -689,11 +765,11 @@ async def installed(request: Request):
 
 
 @app.get("/installed/{path_hash}", response_class=HTMLResponse)
-async def installed_detail(request: Request, path_hash: str):
+async def installed_detail(request: Request, path_hash: str, return_to: str = ""):
     try:
         models = await request.app.state.invokeai.list_models()
-    except httpx.HTTPError:
-        return render_error(request, "InvokeAI is not reachable right now.", status_code=502)
+    except httpx.HTTPError as exc:
+        return render_error(request, summarize_upstream_error(exc, "InvokeAI"), status_code=502)
     model = next(
         (m for m in models if m.get("path") and metadata_store.path_hash(m["path"]) == path_hash),
         None,
@@ -706,12 +782,27 @@ async def installed_detail(request: Request, path_hash: str):
         "model": model,
         "metadata": metadata,
         "active_nav": "installed",
+        "path_hash": path_hash,
+        "background_error": metadata_store.read_background_error(model["path"]),
+        "back_url": f"/installed?{unquote(return_to)}" if return_to else "/installed",
         "civitai_url": metadata.get("civitai_url") if metadata else None,
         "commercial_use_display": (
             format_commercial_use(metadata.get("allowCommercialUse")) if metadata else None
         ),
     }
     return templates.TemplateResponse(request, "installed_detail.html", context)
+
+
+@app.post("/installed/{path_hash}/background-error/dismiss", response_class=HTMLResponse)
+async def dismiss_background_error(request: Request, path_hash: str):
+    error_path = Path(config.CIVITAI_METADATA_DIR) / f"{path_hash}.error.json"
+    try:
+        error_path.unlink(missing_ok=True)
+    except OSError:
+        logger.warning("Failed to clear background error %s", error_path, exc_info=True)
+        return render_error(request, "Could not dismiss the sync issue right now.", status_code=500)
+    toast_module = templates.env.get_template("_toast.html").module
+    return HTMLResponse(str(toast_module.toast("ok", "Dismissed.")))
 
 
 @app.get("/health")

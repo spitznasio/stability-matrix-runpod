@@ -46,7 +46,7 @@
     </thead>
     <tbody id="installed-body">
       {% for model in models %}
-      <tr data-installed-row data-row-href="/installed/{{ model.path_hash }}" style="cursor:pointer;"
+      <tr data-installed-row data-row-href="/installed/{{ model.path_hash }}" data-path-hash="{{ model.path_hash }}" style="cursor:pointer;"
           data-name="{{ model.get('name', '—') }}"
           data-type="{{ model.get('type', '—') }}"
           data-base="{{ model.get('base', '—') }}"

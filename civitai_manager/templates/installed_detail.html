@@ -2,10 +2,17 @@
 {% block title %}{{ (metadata.model_name if metadata else model.get('name')) or "Installed Model" }} — CivitAI Manager{% endblock %}
 {% block content %}
 <div class="detail-shell">
-  <a class="back-link" href="/installed">
+  <a class="back-link" href="{{ back_url }}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
     Back to installed
   </a>
+
+  {% if background_error %}
+  <div class="error-banner" id="background-error-banner">
+    {{ background_error.message }}
+    <button type="button" class="btn btn--small" hx-post="/installed/{{ path_hash }}/background-error/dismiss" hx-target="#background-error-banner" hx-swap="outerHTML">Dismiss</button>
+  </div>
+  {% endif %}
 
   <div class="detail-head">
     <div class="detail-head__row">
@@ -47,7 +54,7 @@
          real Browse tabs have, since switching here has nothing to show. #}
       <div class="version-tabs">
         {% for v in metadata.versions %}
-        <span class="version-tab version-tab--static{{ ' is-active' if v.id == metadata.installed_version_id else '' }}">{{ v.name }}{{ ' (installed)' if v.id == metadata.installed_version_id else '' }}</span>
+        <span class="version-tab version-tab--static{{ ' is-active' if v.id == metadata.installed_version_id else '' }}" title="Only the installed version has details captured">{{ v.name }}{{ ' (installed)' if v.id == metadata.installed_version_id else '' }}</span>
         {% endfor %}
       </div>
       {% endif %}
