@@ -675,11 +675,18 @@ async def download_detail(request: Request, filename: str):
         installed = str(target) in {
             str(Path(m["path"]).resolve()) for m in installed_models if m.get("path")
         }
+        invokeai_error = None
     except httpx.HTTPError:
-        installed = False
+        installed = None
+        invokeai_error = "InvokeAI is not reachable right now — install status is unknown."
     context = {
         "request": request,
-        "file": {"name": target.name, "size": target.stat().st_size, "installed": installed},
+        "file": {
+            "name": target.name,
+            "size": target.stat().st_size,
+            "installed": installed,
+            "install_status_error": invokeai_error,
+        },
         "metadata": metadata,
         "active_nav": "downloads",
     }
