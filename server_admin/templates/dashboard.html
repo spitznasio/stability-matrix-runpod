@@ -2,14 +2,188 @@
 {% block title %}Dashboard — Server Admin{% endblock %}
 {% block content %}
 <h1>Dashboard</h1>
-<div class="metric-grid metric-grid--charts">
-  <div class="chart-card"><h3>CPU %</h3><div id="chart-cpu" class="chart"></div></div>
-  <div class="chart-card"><h3>Memory %</h3><div id="chart-mem" class="chart"></div></div>
-  <div class="chart-card"><h3>Disk %</h3><div id="chart-disk" class="chart"></div></div>
-  <div class="chart-card"><h3>Network Sent</h3><div id="chart-net-send" class="chart"></div></div>
-  <div class="chart-card"><h3>Network Received</h3><div id="chart-net-recv" class="chart"></div></div>
-  <div class="chart-card"><h3>Disk Read</h3><div id="chart-disk-read" class="chart"></div></div>
-  <div class="chart-card"><h3>Disk Write</h3><div id="chart-disk-write" class="chart"></div></div>
+
+<!-- KPI Summary Section -->
+<div class="kpi-section">
+  <!-- Critical KPIs: Large cards row -->
+  <div class="kpi-row">
+    <!-- System Status -->
+    <div class="kpi-card kpi-card--lg">
+      <div class="kpi-header">
+        <div class="kpi-label">System Status</div>
+        <div class="kpi-badge kpi-badge-{{ kpis.status }}">
+          {%- if kpis.status == 'ok' -%}Healthy{%- elif kpis.status == 'warn' -%}Warning{%- else -%}Critical{%- endif -%}
+        </div>
+      </div>
+      <div class="kpi-content">
+        <div class="kpi-value">
+          {%- if kpis.status == 'ok' -%}✓{%- elif kpis.status == 'warn' -%}⚠{%- else -%}✕{%- endif -%}
+        </div>
+        <div class="kpi-detail">
+          {%- if kpis.status == 'ok' -%}All systems nominal
+          {%- elif kpis.status == 'warn' -%}Some metrics elevated
+          {%- else -%}Critical thresholds exceeded{%- endif -%}
+        </div>
+      </div>
+    </div>
+
+    <!-- Services Status -->
+    <div class="kpi-card kpi-card--lg">
+      {%- set svc_status = 'danger' if kpis.services.crashed > 0 else ('warn' if kpis.services.running < kpis.services.total else 'ok') -%}
+      <div class="kpi-header">
+        <div class="kpi-label">Services</div>
+        <div class="kpi-badge kpi-badge-{{ svc_status }}">
+          {%- if kpis.services.running == kpis.services.total -%}
+            Operational
+          {%- elif kpis.services.crashed > 0 -%}
+            {{ kpis.services.crashed }} Crashed
+          {%- else -%}
+            Degraded
+          {%- endif -%}
+        </div>
+      </div>
+      <div class="kpi-content">
+        <div class="kpi-value">{{ kpis.services.running }}<span style="font-size: 1.25rem; color: var(--text-muted);">/ {{ kpis.services.total }}</span></div>
+        <div class="kpi-detail">
+          {%- if kpis.services.running == kpis.services.total -%}
+            All services running
+          {%- elif kpis.services.crashed > 0 -%}
+            {{ kpis.services.crashed }} service{{ 's' if kpis.services.crashed > 1 else '' }} crashed
+          {%- else -%}
+            {{ kpis.services.total - kpis.services.running }} service{{ 's' if kpis.services.total - kpis.services.running > 1 else '' }} stopped
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+
+    <!-- GPU Utilization -->
+    <div class="kpi-card kpi-card--lg">
+      {%- set gpu_status = 'danger' if kpis.gpu.utilization >= 90 else ('warn' if kpis.gpu.utilization >= 70 else 'ok') -%}
+      <div class="kpi-header">
+        <div class="kpi-label">GPU Utilization</div>
+        <div class="kpi-badge kpi-badge-{{ gpu_status }}">
+          {%- if kpis.gpu.utilization >= 90 -%}Critical{%- elif kpis.gpu.utilization >= 70 -%}High{%- else -%}Normal{%- endif -%}
+        </div>
+      </div>
+      <div class="kpi-content">
+        <div class="kpi-value">{{ "%.0f"|format(kpis.gpu.utilization) }}%</div>
+        <div class="kpi-detail">
+          {%- if kpis.gpu.available -%}
+            {{ "%.1f"|format(kpis.gpu.vram_used_gb) }} / {{ "%.1f"|format(kpis.gpu.vram_total_gb) }} GB VRAM
+            {%- if kpis.gpu.temperature_c is not none -%}
+              · {{ "%.0f"|format(kpis.gpu.temperature_c) }}°C
+            {%- endif -%}
+          {%- else -%}
+            GPU unavailable
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+
+    <!-- Capacity Headroom -->
+    <div class="kpi-card kpi-card--lg">
+      {%- set cap_status = 'danger' if kpis.capacity.headroom_pct < 10 else ('warn' if kpis.capacity.headroom_pct < 25 else 'ok') -%}
+      <div class="kpi-header">
+        <div class="kpi-label">Capacity</div>
+        <div class="kpi-badge kpi-badge-{{ cap_status }}">
+          {%- if kpis.capacity.headroom_pct < 10 -%}Critical{%- elif kpis.capacity.headroom_pct < 25 -%}Low{%- else -%}Adequate{%- endif -%}
+        </div>
+      </div>
+      <div class="kpi-content">
+        <div class="kpi-value">{{ "%.1f"|format(kpis.capacity.headroom_pct) }} GB</div>
+        <div class="kpi-detail">GPU Headroom
+          {%- if kpis.capacity.time_to_limit_hours is not none and kpis.capacity.time_to_limit_hours > 0 -%}
+            · ~{{ "%.1f"|format(kpis.capacity.time_to_limit_hours) }}h remaining
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Secondary KPIs: Regular cards row -->
+  <div class="kpi-row">
+    <!-- Disk Usage -->
+    <div class="kpi-card">
+      {%- set disk_status = 'danger' if kpis.system.disk_percent >= 90 else ('warn' if kpis.system.disk_percent >= 75 else 'ok') -%}
+      <div class="kpi-header">
+        <div class="kpi-label">Disk</div>
+        <div class="kpi-badge kpi-badge-{{ disk_status }}">{{ "%.0f"|format(kpis.system.disk_percent) }}%</div>
+      </div>
+      <div class="kpi-value">{{ "%.0f"|format(kpis.system.disk_used_gb) }} GB</div>
+      <div class="kpi-detail">of {{ "%.0f"|format(kpis.system.disk_total_gb) }} GB total</div>
+    </div>
+
+    <!-- Memory Usage -->
+    <div class="kpi-card">
+      {%- set mem_status = 'danger' if kpis.system.mem_percent >= 90 else ('warn' if kpis.system.mem_percent >= 75 else 'ok') -%}
+      <div class="kpi-header">
+        <div class="kpi-label">Memory</div>
+        <div class="kpi-badge kpi-badge-{{ mem_status }}">{{ "%.0f"|format(kpis.system.mem_percent) }}%</div>
+      </div>
+      <div class="kpi-value">{{ "%.0f"|format(kpis.system.mem_used_mb / 1024) }} GB</div>
+      <div class="kpi-detail">of {{ "%.0f"|format(kpis.system.mem_total_mb / 1024) }} GB total</div>
+    </div>
+
+    <!-- CPU Usage -->
+    <div class="kpi-card">
+      {%- set cpu_status = 'danger' if kpis.system.cpu_percent >= 90 else ('warn' if kpis.system.cpu_percent >= 70 else 'ok') -%}
+      <div class="kpi-header">
+        <div class="kpi-label">CPU</div>
+        <div class="kpi-badge kpi-badge-{{ cpu_status }}">{{ "%.0f"|format(kpis.system.cpu_percent) }}%</div>
+      </div>
+      <div class="kpi-value">{{ "%.0f"|format(kpis.system.cpu_percent) }}%</div>
+      <div class="kpi-detail">average utilization (1h)</div>
+    </div>
+
+    <!-- Network Download -->
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <div class="kpi-label">Download</div>
+        <div class="kpi-badge kpi-badge-ok">Active</div>
+      </div>
+      <div class="kpi-value">{{ "%.1f"|format(kpis.network.download_mbps) }} Mbps</div>
+      <div class="kpi-detail">network received</div>
+    </div>
+
+    <!-- Network Upload -->
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <div class="kpi-label">Upload</div>
+        <div class="kpi-badge kpi-badge-ok">Active</div>
+      </div>
+      <div class="kpi-value">{{ "%.1f"|format(kpis.network.upload_mbps) }} Mbps</div>
+      <div class="kpi-detail">network sent</div>
+    </div>
+
+    <!-- System Uptime -->
+    <div class="kpi-card">
+      <div class="kpi-header">
+        <div class="kpi-label">Uptime</div>
+        <div class="kpi-badge kpi-badge-ok">Running</div>
+      </div>
+      <div class="kpi-value">{{ kpis.uptime_seconds | format_uptime }}</div>
+      <div class="kpi-detail">longest service online</div>
+    </div>
+  </div>
 </div>
-<div id="dashboard-gpu" hx-get="/dashboard/gpu" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+
+<!-- Charts Section -->
+<div style="margin-top: 2rem;">
+  <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin: 0 0 1.5rem; font-weight: 700;">System Metrics</h2>
+  <div class="metric-grid metric-grid--charts">
+    <div class="chart-card"><h3>CPU %</h3><div id="chart-cpu" class="chart"></div></div>
+    <div class="chart-card"><h3>Memory %</h3><div id="chart-mem" class="chart"></div></div>
+    <div class="chart-card"><h3>Disk %</h3><div id="chart-disk" class="chart"></div></div>
+    <div class="chart-card"><h3>Network Sent</h3><div id="chart-net-send" class="chart"></div></div>
+    <div class="chart-card"><h3>Network Received</h3><div id="chart-net-recv" class="chart"></div></div>
+    <div class="chart-card"><h3>Disk Read</h3><div id="chart-disk-read" class="chart"></div></div>
+    <div class="chart-card"><h3>Disk Write</h3><div id="chart-disk-write" class="chart"></div></div>
+  </div>
+</div>
+
+<!-- GPU Section -->
+<div style="margin-top: 2rem;">
+  <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin: 0 0 1.5rem; font-weight: 700;">GPU Status</h2>
+  <div id="dashboard-gpu" hx-get="/dashboard/gpu" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+</div>
 {% endblock %}

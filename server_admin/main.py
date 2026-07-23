@@ -19,6 +19,7 @@ from .severity import compute_health
 from .supervisor import SERVICES, monitor_loop, service_manager
 from .telemetry import broadcast, gpu as gpu_telemetry, health as health_telemetry, history
 from .telemetry.gpu import get_gpu_telemetry
+from .telemetry.network import get_network_telemetry
 from .telemetry.system import get_system_telemetry
 
 LOGIN_EXEMPT_PATHS = {"/login", "/health"}
@@ -124,9 +125,96 @@ async def status_strip(request: Request):
     return templates.TemplateResponse(request, "_status_strip.html", {"health": health})
 
 
+def _compute_kpis(system, gpu, network, statuses):
+    """Compute KPI data for dashboard."""
+    # Services status
+    running_count = sum(1 for s in statuses.values() if s.running)
+    crashed_count = sum(1 for s in statuses.values() if s.crashed)
+    total_services = len(statuses)
+
+    # GPU stats
+    gpu_available = gpu.get("available", False)
+    gpu_util = 0
+    gpu_vram_used = 0
+    gpu_vram_total = 0
+    gpu_temp = None
+
+    if gpu_available and gpu.get("gpus"):
+        gpus = gpu["gpus"]
+        if gpus:
+            gpu_util = gpus[0].get("utilization_gpu", 0)
+            gpu_vram_used = sum(g.get("memory_used_mb", 0) for g in gpus) / 1024
+            gpu_vram_total = sum(g.get("memory_total_mb", 0) for g in gpus) / 1024
+            gpu_temp = gpus[0].get("temperature_c")
+
+    # Capacity headroom (estimate time to 90% GPU usage)
+    gpu_history = history.get_gpu_history(0, tier="raw")
+    gpu_trend = 0
+    if len(gpu_history) >= 2:
+        recent_utils = [u for t, u in gpu_history[-10:]]
+        if recent_utils:
+            gpu_trend = (recent_utils[-1] - recent_utils[0]) / max(len(recent_utils), 1)
+
+    capacity_headroom_pct = 90 - gpu_util
+    time_to_limit_hours = None
+    if gpu_trend > 0.1:
+        time_to_limit_hours = capacity_headroom_pct / (gpu_trend * 60)
+
+    # System status classification
+    status = compute_health(system, gpu)
+
+    # Uptime
+    if statuses:
+        oldest_uptime = max((s.uptime_s for s in statuses.values() if s.uptime_s), default=0)
+    else:
+        oldest_uptime = 0
+
+    return {
+        "services": {
+            "running": running_count,
+            "total": total_services,
+            "crashed": crashed_count,
+        },
+        "gpu": {
+            "utilization": gpu_util,
+            "vram_used_gb": gpu_vram_used,
+            "vram_total_gb": gpu_vram_total,
+            "temperature_c": gpu_temp,
+            "available": gpu_available,
+        },
+        "capacity": {
+            "headroom_pct": max(0, capacity_headroom_pct),
+            "time_to_limit_hours": time_to_limit_hours,
+        },
+        "system": {
+            "cpu_percent": system.get("cpu_percent", 0),
+            "mem_percent": system.get("mem_percent", 0),
+            "disk_percent": system.get("disk_percent", 0),
+            "mem_used_mb": system.get("mem_used", 0) / (1024 * 1024),
+            "mem_total_mb": system.get("mem_total", 0) / (1024 * 1024),
+            "disk_used_gb": system.get("disk_used", 0) / (1024 * 1024 * 1024),
+            "disk_total_gb": system.get("disk_total", 0) / (1024 * 1024 * 1024),
+        },
+        "network": {
+            "download_mbps": network.get("recv_rate_bps", 0) / (1024 * 1024),
+            "upload_mbps": network.get("send_rate_bps", 0) / (1024 * 1024),
+        },
+        "status": status,
+        "uptime_seconds": oldest_uptime,
+    }
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    return templates.TemplateResponse(request, "dashboard.html", {"active_nav": "dashboard"})
+    system = await run_in_threadpool(get_system_telemetry)
+    gpu = get_gpu_telemetry()
+    network = await run_in_threadpool(get_network_telemetry)
+    statuses = await run_in_threadpool(service_manager.all_statuses)
+    kpis = _compute_kpis(system, gpu, network, statuses)
+    return templates.TemplateResponse(
+        request, "dashboard.html",
+        {"active_nav": "dashboard", "kpis": kpis, "statuses": statuses}
+    )
 
 
 def _sse_event(event: str, data) -> str:

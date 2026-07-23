@@ -179,10 +179,29 @@ button { font-family: inherit; }
 }
 
 .metric-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, rgba(33, 35, 41, 0.8), rgba(33, 35, 41, 0.6));
+  border: 1px solid rgba(56, 59, 68, 0.6);
+  border-radius: 12px;
+  padding: 1.5rem 1.75rem;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 4px 6px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+  pointer-events: none;
+  border-radius: 12px;
+}
+
+.metric-card:hover {
+  border-color: rgba(66, 99, 235, 0.3);
+  background: linear-gradient(135deg, rgba(33, 35, 41, 0.95), rgba(33, 35, 41, 0.8));
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15), 0 8px 16px rgba(66, 99, 235, 0.06);
 }
 
 .metric-card__label {
@@ -652,4 +671,188 @@ button { font-family: inherit; }
 .chart {
   height: 200px;
   flex: 1;
+}
+
+/* KPI Cards — Enterprise Dashboard */
+
+.kpi-section {
+  margin-bottom: 3rem;
+}
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.kpi-card {
+  background: linear-gradient(135deg, rgba(33, 35, 41, 0.8), rgba(33, 35, 41, 0.6));
+  border: 1px solid rgba(56, 59, 68, 0.6);
+  border-radius: 12px;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 4px 6px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.kpi-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+  pointer-events: none;
+  border-radius: 12px;
+}
+
+.kpi-card:hover {
+  border-color: rgba(66, 99, 235, 0.4);
+  background: linear-gradient(135deg, rgba(33, 35, 41, 0.95), rgba(33, 35, 41, 0.8));
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2), 0 16px 32px rgba(66, 99, 235, 0.08);
+  transform: translateY(-2px);
+}
+
+.kpi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.kpi-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  font-weight: 700;
+  flex: 1;
+}
+
+.kpi-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.kpi-badge-ok {
+  background: rgba(64, 192, 87, 0.15);
+  color: #50d071;
+}
+
+.kpi-badge-warn {
+  background: rgba(240, 140, 0, 0.15);
+  color: #ffb84d;
+}
+
+.kpi-badge-danger {
+  background: rgba(250, 82, 82, 0.15);
+  color: #ff6b6b;
+}
+
+.kpi-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.kpi-value {
+  font-family: var(--font-mono);
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  word-break: break-word;
+  letter-spacing: -0.02em;
+}
+
+.kpi-detail {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.kpi-trend {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 0.5rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.kpi-trend-up::before {
+  content: "↑";
+  color: var(--ok);
+}
+
+.kpi-trend-down::before {
+  content: "↓";
+  color: var(--warn);
+}
+
+.kpi-trend-stable::before {
+  content: "→";
+  color: var(--text-dim);
+}
+
+.kpi-card--lg {
+  grid-column: span 1;
+}
+
+.kpi-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Alerts section */
+
+.alerts-section {
+  margin-bottom: 2rem;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.alert {
+  padding: 1rem 1.25rem;
+  border-left: 4px solid var(--warn);
+  background: var(--surface);
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.alert--danger {
+  border-left-color: var(--danger);
+}
+
+.alert--warn {
+  border-left-color: var(--warn);
+}
+
+.alert a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.alert a:hover {
+  text-decoration-color: transparent;
 }
