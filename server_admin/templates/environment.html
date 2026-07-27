@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Environment — Server Admin{% endblock %}
 {% block content %}
-<h1>Environment</h1>
-<div id="environment-list" hx-get="/environment/list" hx-trigger="load" hx-swap="innerHTML"></div>
+<div class="page-card">
+  <div id="environment-list" hx-get="/environment/list" hx-trigger="load" hx-swap="innerHTML"></div>
+</div>
 {% endblock %}

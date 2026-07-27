@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Services — Server Admin{% endblock %}
 {% block content %}
-<h1>Services</h1>
-<div id="services-list" hx-get="/services/list" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+<div class="page-card">
+  <div id="services-list" hx-get="/services/list" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+</div>
 {% endblock %}

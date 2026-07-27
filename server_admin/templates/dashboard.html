@@ -1,14 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Server Admin{% endblock %}
 {% block content %}
-<h1>Dashboard</h1>
-
 <!-- KPI Summary Section -->
 <div class="kpi-section">
   <!-- Critical KPIs: Large cards row -->
   <div class="kpi-row">
     <!-- System Status -->
-    <div class="kpi-card kpi-card--lg">
+    <div class="card kpi-card kpi-card--lg">
       <div class="kpi-header">
         <div class="kpi-label">System Status</div>
         <div class="kpi-badge kpi-badge-{{ kpis.status }}">
@@ -28,7 +26,7 @@
     </div>
 
     <!-- Services Status -->
-    <div class="kpi-card kpi-card--lg">
+    <div class="card kpi-card kpi-card--lg">
       {%- set svc_status = 'danger' if kpis.services.crashed > 0 else ('warn' if kpis.services.running < kpis.services.total else 'ok') -%}
       <div class="kpi-header">
         <div class="kpi-label">Services</div>
@@ -57,7 +55,7 @@
     </div>
 
     <!-- GPU Utilization -->
-    <div class="kpi-card kpi-card--lg">
+    <div class="card kpi-card kpi-card--lg">
       {%- set gpu_status = 'danger' if kpis.gpu.utilization >= 90 else ('warn' if kpis.gpu.utilization >= 70 else 'ok') -%}
       <div class="kpi-header">
         <div class="kpi-label">GPU Utilization</div>
@@ -81,7 +79,7 @@
     </div>
 
     <!-- Capacity Headroom -->
-    <div class="kpi-card kpi-card--lg">
+    <div class="card kpi-card kpi-card--lg">
       {%- set cap_status = 'danger' if kpis.capacity.headroom_pct < 10 else ('warn' if kpis.capacity.headroom_pct < 25 else 'ok') -%}
       <div class="kpi-header">
         <div class="kpi-label">Capacity</div>
@@ -103,7 +101,7 @@
   <!-- Secondary KPIs: Regular cards row -->
   <div class="kpi-row">
     <!-- Disk Usage -->
-    <div class="kpi-card">
+    <div class="card kpi-card">
       {%- set disk_status = 'danger' if kpis.system.disk_percent >= 90 else ('warn' if kpis.system.disk_percent >= 75 else 'ok') -%}
       <div class="kpi-header">
         <div class="kpi-label">Disk</div>
@@ -114,7 +112,7 @@
     </div>
 
     <!-- Memory Usage -->
-    <div class="kpi-card">
+    <div class="card kpi-card">
       {%- set mem_status = 'danger' if kpis.system.mem_percent >= 90 else ('warn' if kpis.system.mem_percent >= 75 else 'ok') -%}
       <div class="kpi-header">
         <div class="kpi-label">Memory</div>
@@ -125,7 +123,7 @@
     </div>
 
     <!-- CPU Usage -->
-    <div class="kpi-card">
+    <div class="card kpi-card">
       {%- set cpu_status = 'danger' if kpis.system.cpu_percent >= 90 else ('warn' if kpis.system.cpu_percent >= 70 else 'ok') -%}
       <div class="kpi-header">
         <div class="kpi-label">CPU</div>
@@ -136,7 +134,7 @@
     </div>
 
     <!-- Network Download -->
-    <div class="kpi-card">
+    <div class="card kpi-card">
       <div class="kpi-header">
         <div class="kpi-label">Download</div>
         <div class="kpi-badge kpi-badge-ok">Active</div>
@@ -146,7 +144,7 @@
     </div>
 
     <!-- Network Upload -->
-    <div class="kpi-card">
+    <div class="card kpi-card">
       <div class="kpi-header">
         <div class="kpi-label">Upload</div>
         <div class="kpi-badge kpi-badge-ok">Active</div>
@@ -156,7 +154,7 @@
     </div>
 
     <!-- System Uptime -->
-    <div class="kpi-card">
+    <div class="card kpi-card">
       <div class="kpi-header">
         <div class="kpi-label">Uptime</div>
         <div class="kpi-badge kpi-badge-ok">Running</div>
@@ -169,7 +167,7 @@
 
 <!-- Charts Section -->
 <div style="margin-top: 2rem;">
-  <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin: 0 0 1.5rem; font-weight: 700;">System Metrics</h2>
+  <h2 class="section-heading">System Metrics</h2>
   <div class="metric-grid metric-grid--charts">
     <div class="chart-card"><h3>CPU %</h3><div id="chart-cpu" class="chart"></div></div>
     <div class="chart-card"><h3>Memory %</h3><div id="chart-mem" class="chart"></div></div>
@@ -183,7 +181,7 @@
 
 <!-- GPU Section -->
 <div style="margin-top: 2rem;">
-  <h2 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin: 0 0 1.5rem; font-weight: 700;">GPU Status</h2>
+  <h2 class="section-heading">GPU Status</h2>
   <div id="dashboard-gpu" hx-get="/dashboard/gpu" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
 </div>
 {% endblock %}

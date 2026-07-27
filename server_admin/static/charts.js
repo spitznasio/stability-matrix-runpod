@@ -1,11 +1,25 @@
 (function () {
   "use strict";
 
-  // Merges the 3 RRD-style tiers (oldest-to-newest: tier2, tier1, raw) into
-  // one continuous series for display. Resolution degrades going further
-  // back in time — this is the tradeoff for bounded memory, not a bug.
+  // Merges the 3 RRD-style tiers into one continuous series for display.
+  // The server rolls every sample into all 3 tiers concurrently (raw AND
+  // tier1 AND tier2 all cover the most recent window, just at different
+  // resolutions) rather than aging data out of one tier into the next, so
+  // naively concatenating them plots overlapping time ranges twice — each
+  // coarser tier must be truncated to only the portion older than the next
+  // finer tier's earliest point before concatenating.
   function mergeTiers(seriesSnapshot) {
-    return seriesSnapshot.tier2.concat(seriesSnapshot.tier1, seriesSnapshot.raw);
+    var raw = seriesSnapshot.raw;
+    var tier1 = seriesSnapshot.tier1;
+    var tier2 = seriesSnapshot.tier2;
+
+    var rawStart = raw.length ? raw[0][0] : Infinity;
+    var tier1Cut = tier1.filter(function (p) { return p[0] < rawStart; });
+
+    var tier1Start = tier1Cut.length ? tier1Cut[0][0] : rawStart;
+    var tier2Cut = tier2.filter(function (p) { return p[0] < tier1Start; });
+
+    return tier2Cut.concat(tier1Cut, raw);
   }
 
   function toUplotData(points) {
@@ -21,7 +35,7 @@
   // Drag-to-zoom (x-axis only) + double-click-to-reset, following uPlot's
   // own documented zoom pattern (cursor.drag + a setSelect hook) rather than
   // a separate wheel-zoom plugin file.
-  function initChart(containerId, label) {
+  function initChart(containerId, label, yRange) {
     var el = document.getElementById(containerId);
     if (!el) return null;
 
@@ -30,8 +44,12 @@
         width: el.clientWidth || 320,
         height: 160,
         cursor: { drag: { x: true, y: false } },
-        series: [{}, { label: label, stroke: "#7048e8", width: 2 }],
-        scales: { x: { time: true } },
+        series: [{}, { label: label, stroke: "#e4e4e7", width: 2 }],
+        scales: { x: { time: true }, y: { range: yRange } },
+        axes: [
+          { stroke: "#a1a1aa", grid: { stroke: "#27272a" }, ticks: { stroke: "#27272a" } },
+          { stroke: "#a1a1aa", grid: { stroke: "#27272a" }, ticks: { stroke: "#27272a" } },
+        ],
         hooks: {
           setSelect: [
             function (u) {
@@ -88,14 +106,24 @@
     diskWrite: null,
   };
 
+  // Percentage series get a hard-fixed 0-100 range. Throughput (bps) series
+  // have no natural fixed ceiling, so only the floor is pinned at 0 — this
+  // still removes the main distortion (the auto-scaled minimum creeping
+  // above 0 and exaggerating small fluctuations) without clipping real
+  // spikes or guessing an arbitrary cap.
+  var PERCENT_RANGE = [0, 100];
+  var FLOOR_ZERO_RANGE = function (u, dataMin, dataMax) {
+    return [0, dataMax];
+  };
+
   function initAllCharts() {
-    CHARTS.cpu = initChart("chart-cpu", "CPU %");
-    CHARTS.mem = initChart("chart-mem", "Mem %");
-    CHARTS.disk = initChart("chart-disk", "Disk %");
-    CHARTS.netSend = initChart("chart-net-send", "Send bps");
-    CHARTS.netRecv = initChart("chart-net-recv", "Recv bps");
-    CHARTS.diskRead = initChart("chart-disk-read", "Read bps");
-    CHARTS.diskWrite = initChart("chart-disk-write", "Write bps");
+    CHARTS.cpu = initChart("chart-cpu", "CPU %", PERCENT_RANGE);
+    CHARTS.mem = initChart("chart-mem", "Mem %", PERCENT_RANGE);
+    CHARTS.disk = initChart("chart-disk", "Disk %", PERCENT_RANGE);
+    CHARTS.netSend = initChart("chart-net-send", "Send bps", FLOOR_ZERO_RANGE);
+    CHARTS.netRecv = initChart("chart-net-recv", "Recv bps", FLOOR_ZERO_RANGE);
+    CHARTS.diskRead = initChart("chart-disk-read", "Read bps", FLOOR_ZERO_RANGE);
+    CHARTS.diskWrite = initChart("chart-disk-write", "Write bps", FLOOR_ZERO_RANGE);
   }
 
   function loadAll(snapshot) {

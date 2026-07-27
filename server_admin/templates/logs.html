@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Logs — Server Admin{% endblock %}
 {% block content %}
-<h1>Logs</h1>
 <div class="log-controls">
   <select id="service-select" name="service"
     hx-get="/logs/tail" hx-trigger="change" hx-target="#log-tail" hx-swap="innerHTML" hx-include="this">

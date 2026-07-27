@@ -6,7 +6,7 @@
 {% else %}
 <div class="metric-grid">
   {% for g in gpu.gpus %}
-  <div class="metric-card">
+  <div class="card metric-card">
     <div class="metric-card__label">GPU {{ g.index }} — {{ g.name }}</div>
     <div class="metric-card__reading">{{ "%.0f"|format(g.utilization_gpu) }}%</div>
     <div class="meter">
