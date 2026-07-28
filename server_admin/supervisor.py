@@ -57,6 +57,13 @@ SERVICES: dict[str, ServiceSpec] = {
         display_name="InvokeAI",
         start_cmd=["/usr/local/bin/invokeai-web"],
         match_pattern=r"invokeai-web",
+        # Ensure SSH/manual supervisor restarts keep the same externally
+        # reachable/networked behavior as container boot defaults.
+        env_overrides={
+            "INVOKEAI_ROOT": os.environ.get("INVOKEAI_ROOT", "/workspace/invokeai"),
+            "INVOKEAI_HOST": os.environ.get("INVOKEAI_HOST", "0.0.0.0"),
+            "INVOKEAI_PORT": os.environ.get("INVOKEAI_PORT", "9090"),
+        },
     ),
     "code-server": ServiceSpec(
         key="code-server",

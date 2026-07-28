@@ -3,11 +3,14 @@ FROM runpod/pytorch:1.0.3-cu1281-torch271-ubuntu2404
 # InvokeAI + tooling dependencies for Ubuntu 24.04
 # libgl1 + libglib2.0-0: required by InvokeAI (verified from official Dockerfile)
 # libegl1 + libglx0: GPU rendering paths
+# pkg-config + libopencv-dev: required to compile/load patchmatch C extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglx0 \
     libegl1 \
     libglib2.0-0 \
+    pkg-config \
+    libopencv-dev \
     aria2 \
     wget \
     curl \
